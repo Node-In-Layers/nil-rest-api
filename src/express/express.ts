@@ -10,12 +10,23 @@ import {
   ExpressMiddleware,
   ExpressControllerFunc,
   ExpressRoute,
+  ExpressFeaturesLayer,
 } from './types.js'
 import { isExpressRouter } from './libs.js'
+import { FunctionalModel } from 'functional-models/interfaces.js'
+import { FeaturesContext, ServicesContext } from '@node-in-layers/core/index.js'
+import { OrmModel } from 'functional-models-orm/interfaces.js'
+import { NilDbServicesLayer } from '@node-in-layers/db/types.js'
 
 const DEFAULT_BODY_SIZE = 10
 
-const create = (context: LayerContext<Config & ExpressConfig>) => {
+const create = (
+  context: FeaturesContext<
+    Config & ExpressConfig,
+    NilDbServicesLayer,
+    ExpressFeaturesLayer
+  >
+) => {
   const options = context.config['@node-in-layers/express']
   const routes: (ExpressRoute | ExpressRouter)[] = []
   const preRouteMiddleware: ExpressMiddleware[] = []
@@ -43,6 +54,23 @@ const create = (context: LayerContext<Config & ExpressConfig>) => {
 
   const addUse = (obj: any) => {
     expressUses.push(obj)
+  }
+
+  const addModel = <T extends FunctionalModel>(
+    model: OrmModel<T>,
+    urlPrefix?: string
+  ) => {
+    const service =
+      context.services['@node-in-layers/db'].simpleCrudsService(model)
+    const controller =
+      context.features['@node-in-layers/express'].modelCrudsController(service)
+    const router = context.features['@node-in-layers/express'].modelCrudsRouter(
+      model,
+      controller,
+      urlPrefix
+    )
+    addRouter(router)
+    return
   }
 
   const listen = (port: number) => {
@@ -90,6 +118,7 @@ const create = (context: LayerContext<Config & ExpressConfig>) => {
     addRouter,
     addPreRouteMiddleware,
     addPostRouteMiddleware,
+    addModel,
   }
 }
 
