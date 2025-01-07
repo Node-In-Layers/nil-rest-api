@@ -1,10 +1,11 @@
-import { LayerContext, Config } from '@node-in-layers/core'
+import { LayerContext, Config, ServicesContext, FeaturesContext } from '@node-in-layers/core'
 import Express, { Request, Response, Router } from 'express'
 import cors from 'cors'
 import bodyParser from 'body-parser'
 import compression from 'http-compression'
 import {
   ExpressConfig,
+  ExpressNamespace,
   ExpressMethod,
   ExpressRouter,
   ExpressMiddleware,
@@ -14,20 +15,19 @@ import {
 } from './types.js'
 import { isExpressRouter } from './libs.js'
 import { FunctionalModel } from 'functional-models/interfaces.js'
-import { FeaturesContext, ServicesContext } from '@node-in-layers/core/index.js'
 import { OrmModel } from 'functional-models-orm/interfaces.js'
-import { NilDbServicesLayer } from '@node-in-layers/db/types.js'
+import { DataConfig, ModelCrudsInterface } from '@node-in-layers/data/index.js'
 
 const DEFAULT_BODY_SIZE = 10
 
 const create = (
   context: FeaturesContext<
-    Config & ExpressConfig,
-    NilDbServicesLayer,
+    DataConfig & ExpressConfig,
+    ServicesContext,
     ExpressFeaturesLayer
   >
 ) => {
-  const options = context.config['@node-in-layers/express']
+  const options = context.config[ExpressNamespace.root]
   const routes: (ExpressRoute | ExpressRouter)[] = []
   const preRouteMiddleware: ExpressMiddleware[] = []
   const postRouteMiddleware: ExpressMiddleware[] = []
@@ -56,15 +56,14 @@ const create = (
     expressUses.push(obj)
   }
 
-  const addModel = <T extends FunctionalModel>(
-    model: OrmModel<T>,
+  const addModelCrudsInterface = <T extends FunctionalModel>(
+    modelCrudsInterface: ModelCrudsInterface<T>,
     urlPrefix?: string
   ) => {
-    const service =
-      context.services['@node-in-layers/db'].simpleCrudsService(model)
+    const model = modelCrudsInterface.getModel()
     const controller =
-      context.features['@node-in-layers/express'].modelCrudsController(service)
-    const router = context.features['@node-in-layers/express'].modelCrudsRouter(
+      context.features[ExpressNamespace.root].modelCrudsController(modelCrudsInterface)
+    const router = context.features[ExpressNamespace.root].modelCrudsRouter(
       model,
       controller,
       urlPrefix
@@ -118,7 +117,7 @@ const create = (
     addRouter,
     addPreRouteMiddleware,
     addPostRouteMiddleware,
-    addModel,
+    addModelCrudsInterface,
   }
 }
 

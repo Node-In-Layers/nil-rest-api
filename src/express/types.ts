@@ -1,7 +1,7 @@
 import { Request, Response, Router } from 'express'
 import { ORMType, OrmModel } from 'functional-models-orm'
 import { FunctionalModel } from 'functional-models/interfaces.js'
-import { SimpleCrudsService } from '@node-in-layers/db/types.js'
+import { ModelCrudsInterface } from '@node-in-layers/data/types.js'
 
 type ExpressServices = Readonly<object>
 enum ExpressNamespace {
@@ -12,7 +12,7 @@ type ExpressServicesLayer = Readonly<{
   [ExpressNamespace.root]: ExpressServices
 }>
 
-type SimpleCrudsController = Readonly<{
+type ModelCrudsController = Readonly<{
   create: ExpressControllerFunc
   retrieve: ExpressControllerFunc
   update: ExpressControllerFunc
@@ -23,12 +23,12 @@ type SimpleCrudsController = Readonly<{
 type ExpressFeatures = Readonly<{
   modelCrudsRouter: <T extends FunctionalModel>(
     model: OrmModel<T>,
-    controller: SimpleCrudsController,
+    controller: ModelCrudsController,
     urlPrefix?: string
   ) => Router
   modelCrudsController: <T extends FunctionalModel>(
-    simpleCrudsService: SimpleCrudsService<T>
-  ) => SimpleCrudsController
+    modelCrudsInterface: ModelCrudsInterface<T>
+  ) => ModelCrudsController
 }>
 
 type ExpressFeaturesLayer = Readonly<{
@@ -46,7 +46,7 @@ type ExpressFunctions = Readonly<{
   addRouter: (router: Router) => void
   addPreRouteMiddleware: (middleware: ExpressMiddleware) => void
   addPostRouteMiddleware: (middleware: ExpressMiddleware) => void
-  addModel: <T extends FunctionalModel>(model: OrmModel<T>) => void
+  addModelCrudsInterface: <T extends FunctionalModel>(modelCrudsInterface: ModelCrudsInterface<T>) => void
 }>
 
 type ExpressLayer = Readonly<{
@@ -105,6 +105,5 @@ export {
   ExpressLayer,
   ExpressFunctions,
   ExpressContext,
-  SimpleCrudsService,
-  SimpleCrudsController,
+  ModelCrudsController,
 }
