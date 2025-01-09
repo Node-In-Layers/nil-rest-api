@@ -1,15 +1,14 @@
 import { Request, Response, Router } from 'express'
 import { ORMType, OrmModel } from 'functional-models-orm'
 import { FunctionalModel } from 'functional-models/interfaces.js'
+import { Config, LogLevelNames } from '@node-in-layers/core/index.js'
 import { ModelCrudsInterface } from '@node-in-layers/data/types.js'
+import { RestApiNamespace } from '../types.js'
 
 type ExpressServices = Readonly<object>
-enum ExpressNamespace {
-  root = '@node-in-layers/express',
-}
 
 type ExpressServicesLayer = Readonly<{
-  [ExpressNamespace.root]: ExpressServices
+  [RestApiNamespace.express]: ExpressServices
 }>
 
 type ModelCrudsController = Readonly<{
@@ -32,7 +31,7 @@ type ExpressFeatures = Readonly<{
 }>
 
 type ExpressFeaturesLayer = Readonly<{
-  [ExpressNamespace.root]: ExpressFeatures
+  [RestApiNamespace.express]: ExpressFeatures
 }>
 
 type ExpressFunctions = Readonly<{
@@ -50,22 +49,32 @@ type ExpressFunctions = Readonly<{
 }>
 
 type ExpressLayer = Readonly<{
-  [ExpressNamespace.root]: ExpressFunctions
+  [RestApiNamespace.express]: ExpressFunctions
 }>
 
 type ExpressContext<T extends object = object> = Readonly<{
   express: ExpressLayer & T
 }>
 
-type ExpressOptions = {
-  cors?: boolean
-  compression?: boolean
+type ExpressOptions = Readonly<{
+  port: number
+  noCors?: boolean
+  noCompression?: boolean
+  /**
+   * This object is taken directly from:
+   * https://expressjs.com/en/resources/middleware/session.html
+   */
+  session?: object, 
+  logging?: {
+    requestLogLevel: LogLevelNames,
+    responseLogLevel: LogLevelNames,
+  },
   jsonBodySizeLimitInMb?: number
   encodedBodySizeLimitInMb?: number
-}
+}>
 
-type ExpressConfig = Readonly<{
-  [ExpressNamespace.root]: ExpressOptions
+type ExpressConfig = Config & Readonly<{
+  [RestApiNamespace.express]: ExpressOptions
 }>
 
 type ExpressControllerFunc = (
@@ -101,7 +110,7 @@ export {
   ExpressMiddleware,
   ExpressRoute,
   ExpressControllerFunc,
-  ExpressNamespace,
+  RestApiNamespace,
   ExpressLayer,
   ExpressFunctions,
   ExpressContext,
