@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto'
-import { CommonContext, Logger, LayerContext, Config, ServicesContext, FeaturesContext } from '@node-in-layers/core'
+import { 
+  CommonContext, 
+  Logger, 
+  LayerContext, 
+  Config, 
+  ServicesContext, 
+  FeaturesContext,
+  ModelCrudsFunctions,
+} from '@node-in-layers/core'
 import Express, { Request, Response, Router } from 'express'
 import cors from 'cors'
 import session from 'express-session'
@@ -14,10 +22,10 @@ import {
   ExpressControllerFunc,
   ExpressRoute,
   ExpressFeaturesLayer,
+  ExpressFunctions,
 } from './types.js'
 import { isExpressRouter } from './libs.js'
-import { FunctionalModel } from 'functional-models/interfaces.js'
-import { OrmModel } from 'functional-models-orm/interfaces.js'
+import { DataDescription, OrmModel } from 'functional-models'
 import { DataConfig, ModelCrudsInterface } from '@node-in-layers/data/index.js'
 
 const DEFAULT_BODY_SIZE = 10
@@ -47,7 +55,7 @@ const create = (
     ServicesContext,
     ExpressFeaturesLayer
   >
-) => {
+) : ExpressFunctions => {
   const options = context.config[RestApiNamespace.express]
   if (!options) {
     throw new Error(`Must include ${context.config[RestApiNamespace.express]} in the config`)
@@ -94,8 +102,8 @@ const create = (
     expressUses.push(obj)
   }
 
-  const addModelCrudsInterface = <T extends FunctionalModel>(
-    modelCrudsInterface: ModelCrudsInterface<T>,
+  const addModelCrudsInterface = <T extends DataDescription>(
+    modelCrudsInterface: ModelCrudsFunctions<T>,
     urlPrefix?: string
   ) => {
     const model = modelCrudsInterface.getModel()

@@ -4,7 +4,7 @@ This package contains useful out of the box tools for building REST APIS rapidly
 It includes boilerplate code for starting a modern production JSON REST API Express server, as well as code for making model based apis.
 
 ## How to Install
-`npm install @node-in-layers/express@latest`
+`npm install @node-in-layers/rest-api@latest`
 
 ### How To Use
 There are three main components of this express package.

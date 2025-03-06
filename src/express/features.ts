@@ -1,12 +1,14 @@
 import { Router, Request, Response } from 'express'
 import kebabCase from 'lodash/kebabCase.js'
-import { Config, FeaturesContext } from '@node-in-layers/core/index.js'
+import { 
+  Config, 
+  FeaturesContext,
+  ModelCrudsFunctions
+} from '@node-in-layers/core/index.js'
 import {
   DataServicesLayer,
-  ModelCrudsInterface,
 } from '@node-in-layers/data/types.js'
-import { OrmModel, OrmQuery } from 'functional-models-orm'
-import { FunctionalModel } from 'functional-models/interfaces.js'
+import { OrmModel, DataDescription, OrmSearch } from 'functional-models'
 import {
   ExpressFeaturesLayer,
   ModelCrudsController,
@@ -17,7 +19,19 @@ const create = (
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   context: FeaturesContext<Config, DataServicesLayer, ExpressFeaturesLayer>
 ): ExpressFeatures => {
-  const modelCrudsRouter = <T extends FunctionalModel>(
+
+
+  /*
+  Object.entries(context).reduce((acc, [key, value]) => {
+    if (typeof value === 'object') {
+      if ('cruds' in value) {
+      }
+    }
+  }, {})
+
+ */
+
+  const modelCrudsRouter = <T extends DataDescription>(
     model: OrmModel<T>,
     controller: ModelCrudsController,
     urlPrefix = '/'
@@ -38,8 +52,8 @@ const create = (
     return router
   }
 
-  const modelCrudsController = <T extends FunctionalModel>(
-    modelCrudsInterface: ModelCrudsInterface<T>
+  const modelCrudsController = <T extends DataDescription>(
+    modelCrudsInterface: ModelCrudsFunctions<T>
   ) => {
     const create = async (req: Request, res: Response) => {
       const data = req.body
@@ -48,8 +62,9 @@ const create = (
     }
 
     const update = async (req: Request, res: Response) => {
+      const id = req.params.id
       const data = req.body
-      const response = await modelCrudsInterface.update(data)
+      const response = await modelCrudsInterface.update(id, data)
       res.status(200).json(response)
     }
 
@@ -75,7 +90,7 @@ const create = (
 
     const search = async (req: Request, res: Response) => {
       const logger = context.log.getLogger('@nil/rest-api/express:search')
-      const data = req.body as OrmQuery
+      const data = req.body as OrmSearch 
       const response = await modelCrudsInterface.search(data)
       res.status(200).json(response)
     }

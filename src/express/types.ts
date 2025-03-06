@@ -1,8 +1,7 @@
 import { Request, Response, Router } from 'express'
-import { ORMType, OrmModel } from 'functional-models-orm'
-import { FunctionalModel } from 'functional-models/interfaces.js'
+import { OrmModel, DataDescription } from 'functional-models'
 import { Config, LogLevelNames } from '@node-in-layers/core/index.js'
-import { ModelCrudsInterface } from '@node-in-layers/data/types.js'
+import { ModelCrudsFunctions } from '@node-in-layers/core/models/types.js'
 import { RestApiNamespace } from '../types.js'
 
 type ExpressServices = Readonly<object>
@@ -20,13 +19,13 @@ type ModelCrudsController = Readonly<{
 }>
 
 type ExpressFeatures = Readonly<{
-  modelCrudsRouter: <T extends FunctionalModel>(
+  modelCrudsRouter: <T extends DataDescription>(
     model: OrmModel<T>,
     controller: ModelCrudsController,
     urlPrefix?: string
   ) => Router
-  modelCrudsController: <T extends FunctionalModel>(
-    modelCrudsInterface: ModelCrudsInterface<T>
+  modelCrudsController: <T extends DataDescription>(
+    modelCrudsInterface: ModelCrudsFunctions<T>
   ) => ModelCrudsController
 }>
 
@@ -45,7 +44,7 @@ type ExpressFunctions = Readonly<{
   addRouter: (router: Router) => void
   addPreRouteMiddleware: (middleware: ExpressMiddleware) => void
   addPostRouteMiddleware: (middleware: ExpressMiddleware) => void
-  addModelCrudsInterface: <T extends FunctionalModel>(modelCrudsInterface: ModelCrudsInterface<T>) => void
+  addModelCrudsInterface: <T extends DataDescription>(modelCrudsInterface: ModelCrudsFunctions<T>) => void
 }>
 
 type ExpressLayer = Readonly<{
