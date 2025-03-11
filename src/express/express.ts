@@ -243,6 +243,13 @@ const create = (
   }
 
   const listen = () => {
+    const express = getApp()
+    const logger = context.log.getLogger(context, 'express')
+    logger.info(`Starting server listening on ${options.port}`)
+    express.listen(options.port)
+  }
+
+  const getApp = () => {
     const express = Express()
     expressUses.forEach(express.use)
     if (!options.noCors) {
@@ -286,13 +293,12 @@ const create = (
     postRouteMiddleware.forEach(m => {
       express.use(m)
     })
-    const logger = context.log.getLogger(context, 'express')
-    logger.info(`Starting server listening on ${options.port}`)
-    express.listen(options.port)
+    return express
   }
 
   return {
     listen,
+    getApp,
     addUse,
     addRoute,
     addRouter,
