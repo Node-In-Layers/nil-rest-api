@@ -1,13 +1,13 @@
 import { Router, Request, Response } from 'express'
+import omit from 'lodash/omit.js'
 import kebabCase from 'lodash/kebabCase.js'
-import { 
-  Config, 
-  FeaturesContext,
-  ModelCrudsFunctions
-} from '@node-in-layers/core/index.js'
+import { StatusCodes } from 'http-status-codes'
 import {
-  DataServicesLayer,
-} from '@node-in-layers/data/types.js'
+  Config,
+  FeaturesContext,
+  ModelCrudsFunctions,
+} from '@node-in-layers/core/index.js'
+import { DataServicesLayer } from '@node-in-layers/data/types.js'
 import { OrmModel, DataDescription, OrmSearch } from 'functional-models'
 import {
   ExpressFeaturesLayer,
@@ -19,28 +19,18 @@ const create = (
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   context: FeaturesContext<Config, DataServicesLayer, ExpressFeaturesLayer>
 ): ExpressFeatures => {
-
-
-  /*
-  Object.entries(context).reduce((acc, [key, value]) => {
-    if (typeof value === 'object') {
-      if ('cruds' in value) {
-      }
-    }
-  }, {})
-
- */
-
   const modelCrudsRouter = <T extends DataDescription>(
     model: OrmModel<T>,
     controller: ModelCrudsController,
     urlPrefix = '/'
   ) => {
     const router = Router()
-    const name = kebabCase(model.getName())
-    const modelUrl = `${urlPrefix}${name}`
-    const modelUrlSearch = `${urlPrefix}${name}/search`
-    const modelIdUrl = `${urlPrefix}${name}/:id`
+    const def = model.getModelDefinition()
+    const namespace = kebabCase(def.namespace).toLowerCase()
+    const name = kebabCase(def.pluralName).toLowerCase()
+    const modelUrl = `${urlPrefix}${namespace}/${name}`
+    const modelUrlSearch = `${urlPrefix}${namespace}/${name}/search`
+    const modelIdUrl = `${urlPrefix}${namespace}/${name}/:id`
 
     router.post(modelUrl, controller.create)
 
@@ -52,48 +42,70 @@ const create = (
     return router
   }
 
+  const _errorCatch = func => (req, res) => {
+    Promise.resolve()
+      .then(async () => {
+        await func(req, res)
+      })
+      .catch(e => {
+        const logger = context.log.getLogger(
+          context,
+          '@nil/rest-api/express:OverallException'
+        )
+        const errorObj = {
+          error: {
+            code: 'OverallException',
+            message: 'Unhandled exception occurred',
+            cause: {
+              message: e.message,
+              details: `${e}`,
+            },
+          },
+        }
+        logger.error('An overall exception occurred', errorObj)
+        res
+          .status(StatusCodes.INTERNAL_SERVER_ERROR)
+          .json(omit(errorObj, ['error.cause']))
+      })
+  }
+
   const modelCrudsController = <T extends DataDescription>(
     modelCrudsInterface: ModelCrudsFunctions<T>
   ) => {
-    const create = async (req: Request, res: Response) => {
+    const create = _errorCatch(async (req: Request, res: Response) => {
       const data = req.body
       const response = await modelCrudsInterface.create(data)
-      res.status(200).json(response)
-    }
+      res.status(StatusCodes.OK).json(response)
+    })
 
-    const update = async (req: Request, res: Response) => {
+    const update = _errorCatch(async (req: Request, res: Response) => {
       const id = req.params.id
       const data = req.body
       const response = await modelCrudsInterface.update(id, data)
-      res.status(200).json(response)
-    }
+      res.status(StatusCodes.OK).json(response)
+    })
 
-    const retrieve = async (req: Request, res: Response) => {
-      console.log("RETRIEVE")
+    const retrieve = _errorCatch(async (req: Request, res: Response) => {
       const data = req.params.id
       const response = await modelCrudsInterface.retrieve(data)
       if (response) {
-        console.log("1")
-        res.status(200).json(response)
+        res.status(StatusCodes.OK).json(response)
       } else {
-        console.log("2")
-        res.status(404).send()
+        res.status(StatusCodes.NOT_FOUND).send()
       }
-    }
+    })
 
-    const del = async (req: Request, res: Response) => {
-      const logger = context.log.getLogger('@nil/rest-api/express:delete')
+    const del = _errorCatch(async (req: Request, res: Response) => {
       const data = req.params.id
       await modelCrudsInterface.delete(data)
-      res.status(200)
-    }
+      res.status(StatusCodes.OK)
+    })
 
-    const search = async (req: Request, res: Response) => {
-      const logger = context.log.getLogger('@nil/rest-api/express:search')
-      const data = req.body as OrmSearch 
+    const search = _errorCatch(async (req: Request, res: Response) => {
+      const data = req.body as OrmSearch
       const response = await modelCrudsInterface.search(data)
-      res.status(200).json(response)
-    }
+      res.status(StatusCodes.OK).json(response)
+    })
 
     return {
       create,

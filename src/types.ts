@@ -1,9 +1,6 @@
-
 enum RestApiNamespace {
-  root='@node-in-layers/rest-api',
-  express='@node-in-layers/rest-api/express',
+  root = '@node-in-layers/rest-api',
+  express = '@node-in-layers/rest-api/express',
 }
 
-export {
-  RestApiNamespace
-}
+export { RestApiNamespace }

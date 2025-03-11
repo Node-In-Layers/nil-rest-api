@@ -44,7 +44,9 @@ type ExpressFunctions = Readonly<{
   addRouter: (router: Router) => void
   addPreRouteMiddleware: (middleware: ExpressMiddleware) => void
   addPostRouteMiddleware: (middleware: ExpressMiddleware) => void
-  addModelCrudsInterface: <T extends DataDescription>(modelCrudsInterface: ModelCrudsFunctions<T>) => void
+  addModelCrudsInterface: <T extends DataDescription>(
+    modelCrudsInterface: ModelCrudsFunctions<T>
+  ) => void
 }>
 
 type ExpressLayer = Readonly<{
@@ -57,24 +59,26 @@ type ExpressContext<T extends object = object> = Readonly<{
 
 type ExpressOptions = Readonly<{
   port: number
+  urlPrefix?: string
   noCors?: boolean
   noCompression?: boolean
   /**
    * This object is taken directly from:
    * https://expressjs.com/en/resources/middleware/session.html
    */
-  session?: object, 
+  session?: object
   logging?: {
-    requestLogLevel: LogLevelNames,
-    responseLogLevel: LogLevelNames,
-  },
+    requestLogLevel: LogLevelNames
+    responseLogLevel: LogLevelNames
+  }
   jsonBodySizeLimitInMb?: number
   encodedBodySizeLimitInMb?: number
 }>
 
-type ExpressConfig = Config & Readonly<{
-  [RestApiNamespace.express]: ExpressOptions
-}>
+type ExpressConfig = Config &
+  Readonly<{
+    [RestApiNamespace.express]: ExpressOptions
+  }>
 
 type ExpressControllerFunc = (
   req: Request,
@@ -109,7 +113,6 @@ export {
   ExpressMiddleware,
   ExpressRoute,
   ExpressControllerFunc,
-  RestApiNamespace,
   ExpressLayer,
   ExpressFunctions,
   ExpressContext,
