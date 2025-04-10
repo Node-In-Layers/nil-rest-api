@@ -48,8 +48,7 @@ const create = (
         await func(req, res)
       })
       .catch(e => {
-        const logger = context.log.getLogger(
-          context,
+        const logger = context.log.getFunctionLogger(
           '@nil/rest-api/express:OverallException'
         )
         const errorObj = {

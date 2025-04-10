@@ -1,4 +1,4 @@
-import { RestApiNamespace } from '../types.js'
+import { RestApiNamespace } from '../common/types.js'
 
 const name = RestApiNamespace.express
 

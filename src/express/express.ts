@@ -3,10 +3,10 @@ import { StatusCodes } from 'http-status-codes'
 import { DataDescription } from 'functional-models'
 import Express, { Request, Response, Router } from 'express'
 import {
-  CommonContext,
   ServicesContext,
   FeaturesContext,
   ModelCrudsFunctions,
+  LogLevelNames,
 } from '@node-in-layers/core'
 import { DataConfig } from '@node-in-layers/data/index.js'
 import bodyParser from 'body-parser'
@@ -14,7 +14,7 @@ import get from 'lodash/get.js'
 import pickBy from 'lodash/pickBy.js'
 import cors from 'cors'
 import compression from 'http-compression'
-import { RestApiNamespace } from '../types.js'
+import { RestApiNamespace } from '../common/types.js'
 import {
   ExpressConfig,
   ExpressMethod,
@@ -31,6 +31,7 @@ import { isExpressRouter } from './libs.js'
 const DEFAULT_BODY_SIZE = 10
 const MAX_NORMAL_RESPONSE_LENGTH = 8192
 const BAD_REQUEST_INT = 400
+const DEFAULT_RESPONSE_REQUEST_LOG_LEVEL = LogLevelNames.info
 
 const requestIdMiddleware = (req: Request, _, next: () => void) => {
   // eslint-disable-next-line functional/immutable-data
@@ -38,98 +39,110 @@ const requestIdMiddleware = (req: Request, _, next: () => void) => {
   next()
 }
 
-const logRequestMiddleware = (context: CommonContext<ExpressConfig>) => {
-  return (req: Request, res: Response, next: () => void) => {
-    const logger = context.log.getLogger(context, `Request ${req.requestId}`, {
-      ids: [{ key: 'requestId', value: req.requestId }],
-    })
-    logger.info('Request received', {
+const create = (
+  context: FeaturesContext<
+    DataConfig & ExpressConfig,
+    ServicesContext,
+    ExpressFeaturesLayer
+  >
+): ExpressFunctions => {
+  const logRequestMiddleware = (
+    req: Request,
+    res: Response,
+    next: () => void
+  ) => {
+    const logger = context.log
+      .getFunctionLogger('logRequestMiddleware')
+      .applyData({
+        requestId: req.requestId,
+      })
+    const level =
+      context[RestApiNamespace.express].logging?.requestLogLevel ||
+      DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
+    logger[level]('Request received', {
       method: req.method,
       url: req.url,
       body: req.body,
     })
     next()
   }
-}
 
-/**
- * This middleware wraps the "res" object, so that values of
- * status, json, send and redirect are captured and stored, accessible for
- * downstream middleware. This MUST be included BEFORE the routes that handle
- * the request.
- * @param req
- * @param res
- * @param next
- */
-const responseWrap = async (req, res, next) => {
-  const originalStatus = res.status.bind(res)
-  const originalSend = res.send.bind(res)
-  const originalJson = res.json.bind(res)
-  const originalRedirect = res.redirect.bind(res)
-  type StatusSetter = () => void
-  const json = (doStatus: StatusSetter) => {
-    return (data: any) => {
-      doStatus()
-      // eslint-disable-next-line functional/immutable-data
-      res.actualSentJson = data
-      return originalJson(data)
-    }
-  }
-  const send = (doStatus: StatusSetter) => {
-    return (data: any) => {
-      doStatus()
-      // eslint-disable-next-line functional/immutable-data
-      res.actualSent = data
-      return originalSend(data)
-    }
-  }
-  const status = (code: number) => {
-    const r = originalStatus(code)
-    // eslint-disable-next-line functional/immutable-data
-    res.actualStatus = code
-
-    return {
-      json: json(() => r),
-      send: send(() => r),
-      redirect: redirect(() => r),
-    }
-  }
-  const redirect = (doStatus: StatusSetter) => {
-    return (...args: any[]) => {
-      doStatus()
-      const hasStatus = parseInt(args[0], 10) > 0
-      const inputs = hasStatus ? [parseInt(args[0], 10), args[1]] : [args[0]]
-      if (hasStatus) {
+  /**
+   * This middleware wraps the "res" object, so that values of
+   * status, json, send and redirect are captured and stored, accessible for
+   * downstream middleware. This MUST be included BEFORE the routes that handle
+   * the request.
+   * @param req
+   * @param res
+   * @param next
+   */
+  const responseWrap = async (req, res, next) => {
+    const originalStatus = res.status.bind(res)
+    const originalSend = res.send.bind(res)
+    const originalJson = res.json.bind(res)
+    const originalRedirect = res.redirect.bind(res)
+    type StatusSetter = () => void
+    const json = (doStatus: StatusSetter) => {
+      return (data: any) => {
+        doStatus()
         // eslint-disable-next-line functional/immutable-data
-        res.actualStatus = args[0]
+        res.actualSentJson = data
+        return originalJson(data)
       }
-      // eslint-disable-next-line functional/immutable-data
-      res.redirectPath = hasStatus ? args[1] : args[0]
-      return originalRedirect(...inputs)
     }
+    const send = (doStatus: StatusSetter) => {
+      return (data: any) => {
+        doStatus()
+        // eslint-disable-next-line functional/immutable-data
+        res.actualSent = data
+        return originalSend(data)
+      }
+    }
+    const status = (code: number) => {
+      const r = originalStatus(code)
+      // eslint-disable-next-line functional/immutable-data
+      res.actualStatus = code
+
+      return {
+        json: json(() => r),
+        send: send(() => r),
+        redirect: redirect(() => r),
+      }
+    }
+    const redirect = (doStatus: StatusSetter) => {
+      return (...args: any[]) => {
+        doStatus()
+        const hasStatus = parseInt(args[0], 10) > 0
+        const inputs = hasStatus ? [parseInt(args[0], 10), args[1]] : [args[0]]
+        if (hasStatus) {
+          // eslint-disable-next-line functional/immutable-data
+          res.actualStatus = args[0]
+        }
+        // eslint-disable-next-line functional/immutable-data
+        res.redirectPath = hasStatus ? args[1] : args[0]
+        return originalRedirect(...inputs)
+      }
+    }
+
+    /* eslint-disable functional/immutable-data */
+    res.status = status
+    res.redirect = redirect(() =>
+      status(res.actualStatus || StatusCodes.MOVED_TEMPORARILY)
+    )
+    res.json = json(() => status(res.actualStatus || StatusCodes.OK))
+    res.send = send(() => status(res.actualStatus || StatusCodes.OK))
+    next()
+    /* eslint-enable functional/immutable-data */
   }
 
-  /* eslint-disable functional/immutable-data */
-  res.status = status
-  res.redirect = redirect(() =>
-    status(res.actualStatus || StatusCodes.MOVED_TEMPORARILY)
-  )
-  res.json = json(() => status(res.actualStatus || StatusCodes.OK))
-  res.send = send(() => status(res.actualStatus || StatusCodes.OK))
-  next()
-  /* eslint-enable functional/immutable-data */
-}
-
-const logResponse =
-  (context: CommonContext<ExpressConfig>) => async (req, res, next) => {
+  const logResponse = async (req, res, next) => {
     res.on('finish', () => {
-      const logger = context.log.getLogger(
-        context,
-        `Request ${req.requestId}`,
-        {
-          ids: [{ key: 'requestId', value: req.requestId }],
-        }
-      )
+      const logger = context.log.getFunctionLogger('logResponse').applyData({
+        requestId: req.requestId,
+      })
+      const level =
+        context[RestApiNamespace.express].logging?.responseLogLevel ||
+        DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
       const _getResponse = () => {
         const response = res.actualSentJson
           ? res.actualSentJson
@@ -153,18 +166,11 @@ const logResponse =
         response: _getResponse(),
       }
 
-      logger.debug('Request Response', data)
+      logger[level]('Request Response', data)
     })
     next()
   }
 
-const create = (
-  context: FeaturesContext<
-    DataConfig & ExpressConfig,
-    ServicesContext,
-    ExpressFeaturesLayer
-  >
-): ExpressFunctions => {
   const options = context.config[RestApiNamespace.express]
   if (!options) {
     throw new Error(`Must include ${RestApiNamespace.express} in the config`)
@@ -177,9 +183,9 @@ const create = (
   const routes: (ExpressRoute | ExpressRouter)[] = []
   const preRouteMiddleware: ExpressMiddleware[] = [
     requestIdMiddleware,
-    logRequestMiddleware(context),
+    logRequestMiddleware,
     responseWrap,
-    logResponse(context),
+    logResponse,
   ]
   const postRouteMiddleware: ExpressMiddleware[] = [
     // @ts-ignore
@@ -244,8 +250,7 @@ const create = (
 
   const listen = () => {
     const express = getApp()
-    const logger = context.log.getLogger(context, 'express')
-    logger.info(`Starting server listening on ${options.port}`)
+    context.log.info(`Starting server listening on ${options.port}`)
     express.listen(options.port)
   }
 

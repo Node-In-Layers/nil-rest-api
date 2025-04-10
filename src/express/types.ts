@@ -2,7 +2,7 @@ import { Request, Response, Router } from 'express'
 import { OrmModel, DataDescription } from 'functional-models'
 import { Config, LogLevelNames } from '@node-in-layers/core/index.js'
 import { ModelCrudsFunctions } from '@node-in-layers/core/models/types.js'
-import { RestApiNamespace } from '../types.js'
+import { RestApiNamespace } from '../common/types.js'
 
 type ExpressServices = Readonly<object>
 
