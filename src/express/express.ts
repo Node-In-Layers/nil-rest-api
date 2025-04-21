@@ -57,7 +57,7 @@ const create = (
         requestId: req.requestId,
       })
     const level =
-      context[RestApiNamespace.express].logging?.requestLogLevel ||
+      context.config[RestApiNamespace.express].logging?.requestLogLevel ||
       DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
     logger[level]('Request received', {
       method: req.method,
@@ -141,7 +141,7 @@ const create = (
         requestId: req.requestId,
       })
       const level =
-        context[RestApiNamespace.express].logging?.responseLogLevel ||
+        context.config[RestApiNamespace.express].logging?.responseLogLevel ||
         DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
       const _getResponse = () => {
         const response = res.actualSentJson
