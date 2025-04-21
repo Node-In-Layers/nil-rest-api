@@ -34,7 +34,7 @@ type ExpressFeaturesLayer = Readonly<{
 }>
 
 type ExpressFunctions = Readonly<{
-  listen: (port: number) => void
+  listen: () => void
   getApp: () => any
   addUse: (obj: any) => void
   addRoute: (
