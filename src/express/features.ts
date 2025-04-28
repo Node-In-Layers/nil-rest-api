@@ -104,7 +104,7 @@ const create = (
     const search = _errorCatch(async (req: Request, res: Response) => {
       const data = req.body as OrmSearch
       const response = await modelCrudsInterface.search(data)
-      const instances = asyncMap(response.instances, i => i.toObj<T>(), 1)
+      const instances = await asyncMap(response.instances, i => i.toObj<T>(), 1)
       res.status(StatusCodes.OK).json({
         instances,
         page: response.page,
