@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import omit from 'lodash/omit.js'
 import kebabCase from 'lodash/kebabCase.js'
 import { StatusCodes } from 'http-status-codes'
+import { asyncMap } from 'modern-async'
 import {
   Config,
   FeaturesContext,
@@ -74,21 +75,21 @@ const create = (
     const create = _errorCatch(async (req: Request, res: Response) => {
       const data = req.body
       const response = await modelCrudsInterface.create(data)
-      res.status(StatusCodes.OK).json(response)
+      res.status(StatusCodes.OK).json(await response.toObj<T>())
     })
 
     const update = _errorCatch(async (req: Request, res: Response) => {
       const id = req.params.id
       const data = req.body
       const response = await modelCrudsInterface.update(id, data)
-      res.status(StatusCodes.OK).json(response)
+      res.status(StatusCodes.OK).json(await response.toObj<T>())
     })
 
     const retrieve = _errorCatch(async (req: Request, res: Response) => {
       const data = req.params.id
       const response = await modelCrudsInterface.retrieve(data)
       if (response) {
-        res.status(StatusCodes.OK).json(response)
+        res.status(StatusCodes.OK).json(await response.toObj<T>())
       } else {
         res.status(StatusCodes.NOT_FOUND).send()
       }
@@ -103,7 +104,11 @@ const create = (
     const search = _errorCatch(async (req: Request, res: Response) => {
       const data = req.body as OrmSearch
       const response = await modelCrudsInterface.search(data)
-      res.status(StatusCodes.OK).json(response)
+      const instances = asyncMap(response.instances, i => i.toObj<T>(), 1)
+      res.status(StatusCodes.OK).json({
+        instances,
+        page: response.page,
+      })
     })
 
     return {

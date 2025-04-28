@@ -1,7 +1,7 @@
 {
   "name": "@node-in-layers/rest-api",
   "type": "module",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "A Rest API implementation with a Node In Layers system.",
   "main": "index.js",
   "scripts": {
