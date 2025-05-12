@@ -25,6 +25,7 @@ import {
   ExpressFeaturesLayer,
   ExpressFunctions,
   ExpressContext,
+  ExpressLoggedControllerFunc,
 } from './types.js'
 import { isExpressRouter } from './libs.js'
 
@@ -52,7 +53,15 @@ const create = (
     next: () => void
   ) => {
     const logger = context.log
-      .getFunctionLogger('logRequestMiddleware')
+      .getFunctionLogger('logRequest', {
+        logging: {
+          ids: [
+            {
+              requestId: req.requestId,
+            },
+          ],
+        },
+      })
       .applyData({
         requestId: req.requestId,
       })
@@ -143,9 +152,19 @@ const create = (
 
   const logResponse = async (req, res, next) => {
     res.on('finish', () => {
-      const logger = context.log.getFunctionLogger('logResponse').applyData({
-        requestId: req.requestId,
-      })
+      const logger = context.log
+        .getFunctionLogger('logResponse', {
+          logging: {
+            ids: [
+              {
+                requestId: req.requestId,
+              },
+            ],
+          },
+        })
+        .applyData({
+          requestId: req.requestId,
+        })
       const level =
         context.config[RestApiNamespace.express].logging?.responseLogLevel ||
         DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
@@ -213,6 +232,53 @@ const create = (
     },
   ]
   const expressUses: any[] = []
+
+  const addLoggedRoute = (
+    method: ExpressMethod,
+    route: string,
+    func: ExpressLoggedControllerFunc
+  ) => {
+    const loggedRoute = async (req: Request, res: Response) => {
+      const name = `${method} ${route}`
+      const logger = context.log
+        .getFunctionLogger(name, {
+          logging: {
+            ids: [
+              {
+                requestId: req.requestId,
+              },
+            ],
+          },
+        })
+        .applyData({
+          method,
+          route,
+        })
+
+      logger.info('Executing route')
+      return Promise.resolve()
+        .then(async () => {
+          return func(logger, req, res)
+        })
+        .then(() => {
+          logger.info('Route executed')
+        })
+        .catch(e => {
+          logger.error('Error executing route', {
+            error: e,
+          })
+          res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            error: {
+              code: 'InternalServerError',
+              message: 'An unhandled exception occurred',
+            },
+          })
+          throw e
+        })
+    }
+    // eslint-disable-next-line functional/immutable-data
+    routes.push({ method, route, func: loggedRoute })
+  }
 
   const addRoute = (
     method: ExpressMethod,
@@ -326,6 +392,7 @@ const create = (
     addUse,
     addRoute,
     addRouter,
+    addLoggedRoute,
     addPreRouteMiddleware,
     addPostRouteMiddleware,
     addModelCrudsInterface,
