@@ -192,12 +192,13 @@ const create = (
     )
   }
   const routes: (ExpressRoute | ExpressRouter)[] = []
-  const preRouteMiddleware: ExpressMiddleware[] = [
+  const _preRouteMiddleware: ExpressMiddleware[] = [
     requestIdMiddleware,
     logRequestMiddleware,
     responseWrap,
     logResponse,
   ]
+  const preRouteMiddleware: ExpressMiddleware[] = []
   const postRouteMiddleware: ExpressMiddleware[] = [
     // @ts-ignore
     (err, req, res, next) => {
@@ -300,6 +301,10 @@ const create = (
       })
     )
     preRouteMiddleware.forEach(m => {
+      express.use(m)
+    })
+    // We want the ability to run our own before we run the default ones.
+    _preRouteMiddleware.forEach(m => {
       express.use(m)
     })
     routes.forEach(r => {
