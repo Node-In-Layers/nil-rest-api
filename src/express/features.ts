@@ -43,11 +43,12 @@ const create = (
     return router
   }
 
-  const _errorCatch = func => (req, res) => {
-    Promise.resolve()
-      .then(async () => {
+  const _errorCatch = (model, functionName, func) => (req, res) => {
+    const name = `${model.getName()}:${functionName}`
+    return context.log
+      ._logWrapAsync(name, async (log, req, res) => {
         await func(req, res)
-      })
+      })(req, res)
       .catch(e => {
         const logger = context.log.getFunctionLogger(
           '@nil/rest-api/express:OverallException'
@@ -72,44 +73,69 @@ const create = (
   const modelCrudsController = <T extends DataDescription>(
     modelCrudsInterface: ModelCrudsFunctions<T>
   ) => {
-    const create = _errorCatch(async (req: Request, res: Response) => {
-      const data = req.body
-      const response = await modelCrudsInterface.create(data)
-      res.status(StatusCodes.OK).json(await response.toObj<T>())
-    })
-
-    const update = _errorCatch(async (req: Request, res: Response) => {
-      const id = req.params.id
-      const data = req.body
-      const response = await modelCrudsInterface.update(id, data)
-      res.status(StatusCodes.OK).json(await response.toObj<T>())
-    })
-
-    const retrieve = _errorCatch(async (req: Request, res: Response) => {
-      const data = req.params.id
-      const response = await modelCrudsInterface.retrieve(data)
-      if (response) {
+    const model = modelCrudsInterface.getModel()
+    const create = _errorCatch(
+      model,
+      'create',
+      async (log, req: Request, res: Response) => {
+        const data = req.body
+        const response = await modelCrudsInterface.create(data)
         res.status(StatusCodes.OK).json(await response.toObj<T>())
-      } else {
-        res.status(StatusCodes.NOT_FOUND).send()
       }
-    })
+    )
 
-    const del = _errorCatch(async (req: Request, res: Response) => {
-      const data = req.params.id
-      await modelCrudsInterface.delete(data)
-      res.status(StatusCodes.OK)
-    })
+    const update = _errorCatch(
+      model,
+      'update',
+      async (log, req: Request, res: Response) => {
+        const id = req.params.id
+        const data = req.body
+        const response = await modelCrudsInterface.update(id, data)
+        res.status(StatusCodes.OK).json(await response.toObj<T>())
+      }
+    )
 
-    const search = _errorCatch(async (req: Request, res: Response) => {
-      const data = req.body as OrmSearch
-      const response = await modelCrudsInterface.search(data)
-      const instances = await asyncMap(response.instances, i => i.toObj<T>(), 1)
-      res.status(StatusCodes.OK).json({
-        instances,
-        page: response.page,
-      })
-    })
+    const retrieve = _errorCatch(
+      model,
+      'retrieve',
+      async (log, req: Request, res: Response) => {
+        const data = req.params.id
+        const response = await modelCrudsInterface.retrieve(data)
+        if (response) {
+          res.status(StatusCodes.OK).json(await response.toObj<T>())
+        } else {
+          res.status(StatusCodes.NOT_FOUND).send()
+        }
+      }
+    )
+
+    const del = _errorCatch(
+      model,
+      'delete',
+      async (log, req: Request, res: Response) => {
+        const data = req.params.id
+        await modelCrudsInterface.delete(data)
+        res.status(StatusCodes.OK)
+      }
+    )
+
+    const search = _errorCatch(
+      model,
+      'search',
+      async (log, req: Request, res: Response) => {
+        const data = req.body as OrmSearch
+        const response = await modelCrudsInterface.search(data)
+        const instances = await asyncMap(
+          response.instances,
+          i => i.toObj<T>(),
+          1
+        )
+        res.status(StatusCodes.OK).json({
+          instances,
+          page: response.page,
+        })
+      }
+    )
 
     return {
       create,
