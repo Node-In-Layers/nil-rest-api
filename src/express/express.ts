@@ -189,7 +189,7 @@ const create = (
   ]
   const postRouteMiddleware: ExpressMiddleware[] = [
     // @ts-ignore
-    (err, req, res) => {
+    (err, req, res, next) => {
       console.error(err.stack)
       // @ts-ignore
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
