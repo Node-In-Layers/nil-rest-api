@@ -223,9 +223,10 @@ const create = (
     func: ExpressLoggedControllerFunc
   ) => {
     const loggedRoute = async (req: Request, res: Response) => {
+      const name = func.name || `${method.toUpperCase()}:${route}`
       const logger = context.log
         .getIdLogger('logRoute', 'requestId', req.requestId)
-        .getIdLogger('functionId', randomUUID())
+        .getIdLogger(name, 'functionId', randomUUID())
         .applyData({
           method,
           route,
