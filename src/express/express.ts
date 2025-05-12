@@ -53,7 +53,6 @@ const create = (
     next: () => void
   ) => {
     const logger = context.log
-      .getFunctionLogger('logRequest')
       .getIdLogger('requestId', req.requestId)
       .applyData({
         requestId: req.requestId,
@@ -146,15 +145,7 @@ const create = (
   const logResponse = async (req, res, next) => {
     res.on('finish', () => {
       const logger = context.log
-        .getFunctionLogger('logResponse', {
-          logging: {
-            ids: [
-              {
-                requestId: req.requestId,
-              },
-            ],
-          },
-        })
+        .getIdLogger('requestId', req.requestId)
         .applyData({
           requestId: req.requestId,
         })
@@ -232,9 +223,7 @@ const create = (
     func: ExpressLoggedControllerFunc
   ) => {
     const loggedRoute = async (req: Request, res: Response) => {
-      const name = `${method} ${route}`
       const logger = context.log
-        .getFunctionLogger(name)
         .getIdLogger('requestId', req.requestId)
         .applyData({
           method,
