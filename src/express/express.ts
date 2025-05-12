@@ -226,7 +226,7 @@ const create = (
       const name = func.name || `${method.toUpperCase()}:${route}`
       const logger = context.log
         .getIdLogger('logRoute', 'requestId', req.requestId)
-        .getIdLogger(name, 'functionId', randomUUID())
+        .getIdLogger(name, 'functionCallId', randomUUID())
         .applyData({
           method,
           route,
