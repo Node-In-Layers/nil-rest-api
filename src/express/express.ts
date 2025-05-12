@@ -53,15 +53,8 @@ const create = (
     next: () => void
   ) => {
     const logger = context.log
-      .getFunctionLogger('logRequest', {
-        logging: {
-          ids: [
-            {
-              requestId: req.requestId,
-            },
-          ],
-        },
-      })
+      .getFunctionLogger('logRequest')
+      .getIdLogger('requestId', req.requestId)
       .applyData({
         requestId: req.requestId,
       })
@@ -241,15 +234,8 @@ const create = (
     const loggedRoute = async (req: Request, res: Response) => {
       const name = `${method} ${route}`
       const logger = context.log
-        .getFunctionLogger(name, {
-          logging: {
-            ids: [
-              {
-                requestId: req.requestId,
-              },
-            ],
-          },
-        })
+        .getFunctionLogger(name)
+        .getIdLogger('requestId', req.requestId)
         .applyData({
           method,
           route,
