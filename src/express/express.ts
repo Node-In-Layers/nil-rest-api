@@ -225,6 +225,7 @@ const create = (
     const loggedRoute = async (req: Request, res: Response) => {
       const logger = context.log
         .getIdLogger('logRoute', 'requestId', req.requestId)
+        .getIdLogger('functionId', randomUUID())
         .applyData({
           method,
           route,
@@ -233,6 +234,7 @@ const create = (
       logger.info('Executing route')
       return Promise.resolve()
         .then(async () => {
+
           return func(logger, req, res)
         })
         .then(() => {
