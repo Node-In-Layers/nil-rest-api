@@ -53,7 +53,7 @@ const create = (
     next: () => void
   ) => {
     const logger = context.log
-      .getIdLogger('requestId', req.requestId)
+      .getIdLogger('logRequest', 'requestId', req.requestId)
       .applyData({
         requestId: req.requestId,
       })
@@ -145,7 +145,7 @@ const create = (
   const logResponse = async (req, res, next) => {
     res.on('finish', () => {
       const logger = context.log
-        .getIdLogger('requestId', req.requestId)
+        .getIdLogger('logResponse', 'requestId', req.requestId)
         .applyData({
           requestId: req.requestId,
         })
@@ -224,7 +224,7 @@ const create = (
   ) => {
     const loggedRoute = async (req: Request, res: Response) => {
       const logger = context.log
-        .getIdLogger('requestId', req.requestId)
+        .getIdLogger('logRoute', 'requestId', req.requestId)
         .applyData({
           method,
           route,
