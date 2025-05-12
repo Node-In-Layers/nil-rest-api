@@ -63,6 +63,7 @@ type ExpressOptions = Readonly<{
   urlPrefix?: string
   noCors?: boolean
   noCompression?: boolean
+  noTrustProxy?: boolean
   /**
    * This object is taken directly from:
    * https://expressjs.com/en/resources/middleware/session.html
@@ -71,6 +72,8 @@ type ExpressOptions = Readonly<{
   logging?: {
     requestLogLevel: LogLevelNames
     responseLogLevel: LogLevelNames
+    requestLogDataCallback?: (req: Request) => object
+    responseLogDataCallback?: (req: Request) => object
   }
   jsonBodySizeLimitInMb?: number
   encodedBodySizeLimitInMb?: number

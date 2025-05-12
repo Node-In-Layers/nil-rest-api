@@ -56,6 +56,10 @@ const create = (
       .applyData({
         requestId: req.requestId,
       })
+    const requestLogDataCallback =
+      context.config[RestApiNamespace.express].logging
+        ?.requestLogDataCallback || (() => ({}))
+    const requestLogData = requestLogDataCallback(req)
     const level =
       context.config[RestApiNamespace.express].logging?.requestLogLevel ||
       DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
@@ -63,6 +67,8 @@ const create = (
       method: req.method,
       url: req.url,
       body: req.body,
+      callerIp: req.ip,
+      ...requestLogData,
     })
     next()
   }
@@ -143,6 +149,10 @@ const create = (
       const level =
         context.config[RestApiNamespace.express].logging?.responseLogLevel ||
         DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
+      const responseLogDataCallback =
+        context.config[RestApiNamespace.express].logging
+          ?.responseLogDataCallback || (() => ({}))
+      const responseLogData = responseLogDataCallback(req)
       const _getResponse = () => {
         const response = res.actualSentJson
           ? res.actualSentJson
@@ -164,6 +174,7 @@ const create = (
         }),
         status: res.actualStatus,
         response: _getResponse(),
+        ...responseLogData,
       }
 
       logger[level]('Request Response', data)
@@ -257,6 +268,9 @@ const create = (
   const getApp = () => {
     const express = Express()
     expressUses.forEach(express.use)
+    if (!options.noTrustProxy) {
+      express.set('trust proxy', true)
+    }
     if (!options.noCors) {
       express.use(cors())
     }
