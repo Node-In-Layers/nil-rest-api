@@ -16,6 +16,8 @@ type ModelCrudsController = Readonly<{
   update: ExpressControllerFunc
   delete: ExpressControllerFunc
   search: ExpressControllerFunc
+  bulkInsert: ExpressControllerFunc
+  bulkDelete: ExpressControllerFunc
 }>
 
 type ExpressFeatures = Readonly<{

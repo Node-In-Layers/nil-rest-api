@@ -30,15 +30,16 @@ const create = (
     const namespace = kebabCase(def.namespace).toLowerCase()
     const name = kebabCase(def.pluralName).toLowerCase()
     const modelUrl = `${urlPrefix}${namespace}/${name}`
+    const modelUrlBulk = `${urlPrefix}${namespace}/${name}/bulk`
     const modelUrlSearch = `${urlPrefix}${namespace}/${name}/search`
     const modelIdUrl = `${urlPrefix}${namespace}/${name}/:id`
 
     router.post(modelUrl, controller.create)
-
+    router.post(modelUrlBulk, controller.bulkInsert)
     router.get(modelIdUrl, controller.retrieve)
     router.put(modelIdUrl, controller.update)
     router.delete(modelIdUrl, controller.delete)
-
+    router.delete(modelUrlBulk, controller.bulkDelete)
     router.post(modelUrlSearch, controller.search)
     return router
   }
@@ -137,12 +138,34 @@ const create = (
       }
     )
 
+    const bulkInsert = _errorCatch(
+      model,
+      'bulkInsert',
+      async (log, req: Request, res: Response) => {
+        const data = req.body
+        await modelCrudsInterface.bulkInsert(data)
+        res.status(StatusCodes.OK)
+      }
+    )
+
+    const bulkDelete = _errorCatch(
+      model,
+      'bulkDelete',
+      async (log, req: Request, res: Response) => {
+        const data = req.body
+        await modelCrudsInterface.bulkDelete(data)
+        res.status(StatusCodes.OK)
+      }
+    )
+
     return {
       create,
       retrieve,
       update,
       delete: del,
       search,
+      bulkInsert,
+      bulkDelete,
     }
   }
 

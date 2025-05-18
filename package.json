@@ -61,8 +61,8 @@
     "typescript": "5.3.3"
   },
   "dependencies": {
-    "@node-in-layers/core": "^1.5.3",
-    "@node-in-layers/data": "^1.0.14",
+    "@node-in-layers/core": "^1.5.5",
+    "@node-in-layers/data": "^1.2.0",
     "body-parser": "^1.20.3",
     "cors": "^2.8.5",
     "express": "^4.21.2",
@@ -70,6 +70,7 @@
     "functional-models": "^3.0.16",
     "http-compression": "^1.1.1",
     "http-status-codes": "^2.3.0",
-    "lodash": "^4.17.21"
+    "lodash": "^4.17.21",
+    "modern-async": "^2.0.4"
   }
 }
