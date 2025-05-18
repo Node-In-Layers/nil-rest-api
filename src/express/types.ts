@@ -1,6 +1,6 @@
 import { Request, Response, Router } from 'express'
 import { OrmModel, DataDescription } from 'functional-models'
-import { Config, LogLevelNames } from '@node-in-layers/core/index.js'
+import { Config, Logger, LogLevelNames } from '@node-in-layers/core/index.js'
 import { ModelCrudsFunctions } from '@node-in-layers/core/models/types.js'
 import { RestApiNamespace } from '../common/types.js'
 
@@ -45,6 +45,18 @@ type ExpressFunctions = Readonly<{
     func: ExpressControllerFunc
   ) => void
   addRouter: (router: Router) => void
+  /**
+   * Adds a route that is logged, and gives a logger as the first argument.
+   * @param method
+   * @param route
+   * @param func
+   * @returns
+   */
+  addLoggedRoute: (
+    method: ExpressMethod,
+    route: string,
+    func: ExpressLoggedControllerFunc
+  ) => void
   addPreRouteMiddleware: (middleware: ExpressMiddleware) => void
   addPostRouteMiddleware: (middleware: ExpressMiddleware) => void
   addModelCrudsInterface: <T extends DataDescription>(
@@ -65,6 +77,7 @@ type ExpressOptions = Readonly<{
   urlPrefix?: string
   noCors?: boolean
   noCompression?: boolean
+  noTrustProxy?: boolean
   /**
    * This object is taken directly from:
    * https://expressjs.com/en/resources/middleware/session.html
@@ -73,6 +86,8 @@ type ExpressOptions = Readonly<{
   logging?: {
     requestLogLevel: LogLevelNames
     responseLogLevel: LogLevelNames
+    requestLogDataCallback?: (req: Request) => object
+    responseLogDataCallback?: (req: Request) => object
   }
   jsonBodySizeLimitInMb?: number
   encodedBodySizeLimitInMb?: number
@@ -87,6 +102,13 @@ type ExpressControllerFunc = (
   req: Request,
   res: Response
 ) => Promise<void> | void
+
+type ExpressLoggedControllerFunc = (
+  log: Logger,
+  req: Request,
+  res: Response
+) => Promise<void> | void
+
 type ExpressMiddleware = (
   req: Request,
   res: Response,
@@ -120,4 +142,5 @@ export {
   ExpressFunctions,
   ExpressContext,
   ModelCrudsController,
+  ExpressLoggedControllerFunc,
 }

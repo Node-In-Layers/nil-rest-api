@@ -25,6 +25,7 @@ import {
   ExpressFeaturesLayer,
   ExpressFunctions,
   ExpressContext,
+  ExpressLoggedControllerFunc,
 } from './types.js'
 import { isExpressRouter } from './libs.js'
 
@@ -52,10 +53,14 @@ const create = (
     next: () => void
   ) => {
     const logger = context.log
-      .getFunctionLogger('logRequestMiddleware')
+      .getIdLogger('logRequest', 'requestId', req.requestId)
       .applyData({
         requestId: req.requestId,
       })
+    const requestLogDataCallback =
+      context.config[RestApiNamespace.express].logging
+        ?.requestLogDataCallback || (() => ({}))
+    const requestLogData = requestLogDataCallback(req)
     const level =
       context.config[RestApiNamespace.express].logging?.requestLogLevel ||
       DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
@@ -63,6 +68,8 @@ const create = (
       method: req.method,
       url: req.url,
       body: req.body,
+      callerIp: req.ip,
+      ...requestLogData,
     })
     next()
   }
@@ -137,12 +144,18 @@ const create = (
 
   const logResponse = async (req, res, next) => {
     res.on('finish', () => {
-      const logger = context.log.getFunctionLogger('logResponse').applyData({
-        requestId: req.requestId,
-      })
+      const logger = context.log
+        .getIdLogger('logResponse', 'requestId', req.requestId)
+        .applyData({
+          requestId: req.requestId,
+        })
       const level =
         context.config[RestApiNamespace.express].logging?.responseLogLevel ||
         DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
+      const responseLogDataCallback =
+        context.config[RestApiNamespace.express].logging
+          ?.responseLogDataCallback || (() => ({}))
+      const responseLogData = responseLogDataCallback(req)
       const _getResponse = () => {
         const response = res.actualSentJson
           ? res.actualSentJson
@@ -164,6 +177,7 @@ const create = (
         }),
         status: res.actualStatus,
         response: _getResponse(),
+        ...responseLogData,
       }
 
       logger[level]('Request Response', data)
@@ -181,15 +195,16 @@ const create = (
     )
   }
   const routes: (ExpressRoute | ExpressRouter)[] = []
-  const preRouteMiddleware: ExpressMiddleware[] = [
+  const _preRouteMiddleware: ExpressMiddleware[] = [
     requestIdMiddleware,
     logRequestMiddleware,
     responseWrap,
     logResponse,
   ]
+  const preRouteMiddleware: ExpressMiddleware[] = []
   const postRouteMiddleware: ExpressMiddleware[] = [
     // @ts-ignore
-    (err, req, res) => {
+    (err, req, res, next) => {
       console.error(err.stack)
       // @ts-ignore
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -201,6 +216,47 @@ const create = (
     },
   ]
   const expressUses: any[] = []
+
+  const addLoggedRoute = (
+    method: ExpressMethod,
+    route: string,
+    func: ExpressLoggedControllerFunc
+  ) => {
+    const loggedRoute = async (req: Request, res: Response) => {
+      const name = func.name || `${method.toUpperCase()}:${route}`
+      const logger = context.log
+        .getIdLogger('logRoute', 'requestId', req.requestId)
+        .getIdLogger(name, 'functionCallId', randomUUID())
+        .applyData({
+          method,
+          route,
+        })
+
+      logger.info('Executing route')
+      return Promise.resolve()
+        .then(async () => {
+
+          return func(logger, req, res)
+        })
+        .then(() => {
+          logger.info('Route executed')
+        })
+        .catch(e => {
+          logger.error('Error executing route', {
+            error: e,
+          })
+          res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            error: {
+              code: 'InternalServerError',
+              message: 'An unhandled exception occurred',
+            },
+          })
+          throw e
+        })
+    }
+    // eslint-disable-next-line functional/immutable-data
+    routes.push({ method, route, func: loggedRoute })
+  }
 
   const addRoute = (
     method: ExpressMethod,
@@ -257,6 +313,9 @@ const create = (
   const getApp = () => {
     const express = Express()
     expressUses.forEach(express.use)
+    if (!options.noTrustProxy) {
+      express.set('trust proxy', true)
+    }
     if (!options.noCors) {
       express.use(cors())
     }
@@ -288,6 +347,10 @@ const create = (
     preRouteMiddleware.forEach(m => {
       express.use(m)
     })
+    // We want the ability to run our own before we run the default ones.
+    _preRouteMiddleware.forEach(m => {
+      express.use(m)
+    })
     routes.forEach(r => {
       if (isExpressRouter(r)) {
         express.use(r.router)
@@ -307,6 +370,7 @@ const create = (
     addUse,
     addRoute,
     addRouter,
+    addLoggedRoute,
     addPreRouteMiddleware,
     addPostRouteMiddleware,
     addModelCrudsInterface,
