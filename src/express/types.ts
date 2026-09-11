@@ -1,5 +1,10 @@
 import { Request, Response, Router } from 'express'
-import { Config, Logger, LogLevelNames } from '@node-in-layers/core/index.js'
+import {
+  Config,
+  FeaturesContext,
+  Logger,
+  LogLevelNames,
+} from '@node-in-layers/core/index.js'
 import {
   DataDescription,
   OrmModel,
@@ -7,6 +12,7 @@ import {
   OrmSearchResult,
 } from 'functional-models'
 import { RestApiNamespace } from '../common/types.js'
+import type { RestApiFeaturesConfigLayer } from '../features/types.js'
 
 type ModelCrudsFunctions<T extends DataDescription> = Readonly<{
   getModel: () => OrmModel<T>
@@ -48,9 +54,13 @@ type ExpressFeaturesLayer = Readonly<{
   [RestApiNamespace.express]: ExpressFeatures
 }>
 
+type ExpressAutoRegistrationContext = FeaturesContext<
+  Config & RestApiFeaturesConfigLayer
+>
+
 type ExpressFunctions = Readonly<{
-  listen: () => void
-  getApp: () => any
+  listen: (systemContext: ExpressAutoRegistrationContext) => void
+  getApp: (systemContext: ExpressAutoRegistrationContext) => any
   addUse: (obj: any) => void
   addRoute: (
     method: ExpressMethod,
@@ -150,6 +160,7 @@ export {
   ExpressServicesLayer,
   ExpressFeatures,
   ExpressFeaturesLayer,
+  ExpressAutoRegistrationContext,
   ExpressLogIgnorePattern,
   ExpressLoggingOptions,
   ExpressConfig,

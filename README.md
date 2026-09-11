@@ -54,7 +54,7 @@ You can append a prefix to the url by adding it as an argument to the router. Th
 
 ## Custom Layer - "express"
 
-This package adds a custom layer called "express". This layer is intended to be a composite layer with the `entries` layer. This is for systems that use express as the final top layer. One example would be a REST API Backend. This custom layer, adds a number of functions that are useful for setting up an express server. (Setting routes, adding middleware, starting the server with listen).
+This package adds a custom layer called "express". This layer is intended to be a composite layer with the `entries` layer. This is for systems that use express as the final top layer. One example would be a REST API Backend. This custom layer adds functions for setting up an express server, such as setting routes, adding middleware, building the app with `getApp(systemContext)`, and starting the server with `listen(systemContext)`.
 
 To add your own routes and middleware you need to create a `express` layer (such as a file named `express.ts` that has a `create()` function in it).
 
@@ -65,16 +65,17 @@ In order to use the express layer, you need to add it as a composite layer insid
 ```javascript
 // Example config.dev.mjs
 import { CoreNamespace } from '@node-in-layers/core/index.js'
+import * as nilData from '@node-in-layers/data'
 import { DataNamespace } from '@node-in-layers/data/index.js'
 import { RestApiNamespace } from '@node-in-layers/rest-api/index.js'
-import { peteSdkLogger } from './dist/logging.js'
+import * as nilRest from '@node-in-layers/rest-api'
 
 const core = {
-  apps: await Promise.all([
-    import(`@node-in-layers/data/index.js`),
+  domains: [
+    nilData,
     // Import here
-    import(`@node-in-layers/rest-api/express/index.js`),
-  ]),
+    nilRest,
+  ],
   // NOTE: The composite layer with entries.
   layerOrder: ['services', 'features', ['entries', 'express']],
   logging: {
@@ -109,10 +110,38 @@ export default () => ({
   [CoreNamespace.root]: core,
   [DataNamespace.root]: data,
   [RestApiNamespace.express]: express,
+  [RestApiNamespace.features]: {
+    // Optional: only when true will getApp(systemContext) auto-register
+    // NIL-annotated features as REST endpoints.
+    enabled: true,
+  },
 })
 ```
 
 `logging.ignoreEndpointPatterns` skips both request and response logs for matching endpoints. String values match by path prefix, and `RegExp` values are tested against the request path without query parameters.
+
+### Starting or building the app
+
+The express host now requires the full system object when you build or start the app:
+
+```typescript
+import { loadSystem } from '@node-in-layers/core'
+import { RestApiNamespace } from '@node-in-layers/rest-api'
+
+const system = await loadSystem({ environment: 'dev' })
+
+system.express[RestApiNamespace.express].getApp(system)
+system.express[RestApiNamespace.express].listen(system)
+```
+
+### Annotated feature auto-registration
+
+When `config[RestApiNamespace.features].enabled === true`, `getApp(systemContext)` will automatically register routes one time before the Express app is built:
+
+- NIL-annotated feature functions as REST endpoints
+- model CRUD interfaces discovered on `systemContext.features[domain].cruds`
+
+If that config is omitted or not explicitly `true`, neither annotated features nor model CRUD routes are auto-registered.
 
 ### Model CRUDS
 
@@ -121,7 +150,10 @@ In order to CRUDS functionality to the REST interface you need to create this ex
 ### Example Use
 
 We want to create a model and provide CRUDS routes to it. The easiest way to do this is to create our
-There is a helper method on the custom express layer called `#addModel()` that makes this really easy.
+There are two helpers that make this easy:
+
+- `expressModels('your-namespace')` to auto-wire all CRUD models from a namespace
+- `addModelCrudsInterface()` on the express host when you want to register a specific CRUD interface manually
 
 ```typescript
 // /src/your-app/express.ts

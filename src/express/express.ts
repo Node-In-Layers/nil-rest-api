@@ -7,7 +7,6 @@ import {
   LogLevelNames,
 } from '@node-in-layers/core'
 import { DataConfig } from '@node-in-layers/data/index.js'
-import type { RestHttpMethod } from '@node-in-layers/rest-client'
 import { DataDescription } from 'functional-models'
 import bodyParser from 'body-parser'
 import get from 'lodash/get.js'
@@ -15,9 +14,10 @@ import pickBy from 'lodash/pickBy.js'
 import cors from 'cors'
 import compression from 'http-compression'
 import { RestApiNamespace } from '../common/types.js'
-import { registerExpressRoute } from '../features/registerAnnotatedFeatures.js'
+import { registerAnnotatedFeatures } from '../features/registerAnnotatedFeatures.js'
 import {
   ExpressConfig,
+  ExpressAutoRegistrationContext,
   ExpressMethod,
   ExpressRouter,
   ExpressMiddleware,
@@ -240,6 +240,8 @@ const create = (
     },
   ]
   const expressUses: any[] = []
+  const autoRegisteredSystems = new WeakSet<object>()
+  const registeredModelCrudKeys = new Set<string>()
 
   const addLoggedRoute = (
     method: ExpressMethod,
@@ -286,11 +288,6 @@ const create = (
     route: string,
     func: ExpressControllerFunc
   ) => {
-    registerExpressRoute(
-      method as RestHttpMethod,
-      route,
-      `manual route: ${method} ${route}`
-    )
     // eslint-disable-next-line functional/immutable-data
     routes.push({ method, route, func })
   }
@@ -319,6 +316,11 @@ const create = (
     urlPrefix?: string
   ) => {
     const model = modelCrudsInterface.getModel()
+    const modelCrudKey = `${model.getName()}:${urlPrefix || options.urlPrefix || ''}`
+    if (registeredModelCrudKeys.has(modelCrudKey)) {
+      return
+    }
+    registeredModelCrudKeys.add(modelCrudKey)
     const controller =
       context.features[RestApiNamespace.express].modelCrudsController(
         modelCrudsInterface
@@ -332,13 +334,86 @@ const create = (
     return
   }
 
-  const listen = () => {
-    const express = getApp()
+  const _getExpressFunctions = (): ExpressFunctions => {
+    return {
+      listen,
+      getApp,
+      addUse,
+      addRoute,
+      addRouter,
+      addLoggedRoute,
+      addPreRouteMiddleware,
+      addPostRouteMiddleware,
+      addModelCrudsInterface,
+    }
+  }
+
+  const _shouldAutoRegister = (
+    systemContext: ExpressAutoRegistrationContext
+  ): boolean => {
+    return systemContext.config[RestApiNamespace.features]?.enabled === true
+  }
+
+  const _autoRegisterAnnotatedFeatures = (
+    systemContext: ExpressAutoRegistrationContext
+  ) => {
+    registerAnnotatedFeatures({
+      ...systemContext,
+      [RestApiNamespace.express]: _getExpressFunctions(),
+    } as ExpressAutoRegistrationContext & Record<string, unknown>)
+  }
+
+  const _collectModelCrudsInterfaces = (
+    systemContext: ExpressAutoRegistrationContext
+  ): ReadonlyArray<ModelCrudsFunctions<any>> => {
+    return Object.values(
+      systemContext.features as Record<string, unknown>
+    ).flatMap(domainFeatures => {
+      if (!domainFeatures || typeof domainFeatures !== 'object') {
+        return []
+      }
+      const cruds = get(domainFeatures, 'cruds') as
+        | Record<string, ModelCrudsFunctions<any>>
+        | undefined
+      if (!cruds) {
+        return []
+      }
+      return Object.values(cruds)
+    })
+  }
+
+  const _autoRegisterModelCruds = (
+    systemContext: ExpressAutoRegistrationContext
+  ) => {
+    _collectModelCrudsInterfaces(systemContext).forEach(modelCrudsInterface => {
+      addModelCrudsInterface(modelCrudsInterface, options.urlPrefix)
+    })
+  }
+
+  const _autoRegisterConfiguredRoutes = (
+    systemContext: ExpressAutoRegistrationContext
+  ) => {
+    if (!_shouldAutoRegister(systemContext)) {
+      return
+    }
+    if (autoRegisteredSystems.has(systemContext as object)) {
+      return
+    }
+
+    _autoRegisterAnnotatedFeatures(systemContext)
+    _autoRegisterModelCruds(systemContext)
+    autoRegisteredSystems.add(systemContext as object)
+  }
+
+  const listen = (systemContext: ExpressAutoRegistrationContext) => {
+    const express = getApp(systemContext)
     context.log.info(`Starting server listening on ${options.port}`)
     express.listen(options.port)
   }
 
-  const getApp = () => {
+  const getApp = (systemContext: ExpressAutoRegistrationContext) => {
+    _autoRegisterConfiguredRoutes(systemContext)
+
     const express = Express()
     expressUses.forEach(express.use)
     if (!options.noTrustProxy) {
@@ -392,17 +467,7 @@ const create = (
     return express
   }
 
-  return {
-    listen,
-    getApp,
-    addUse,
-    addRoute,
-    addRouter,
-    addLoggedRoute,
-    addPreRouteMiddleware,
-    addPostRouteMiddleware,
-    addModelCrudsInterface,
-  }
+  return _getExpressFunctions()
 }
 
 const expressModels =
