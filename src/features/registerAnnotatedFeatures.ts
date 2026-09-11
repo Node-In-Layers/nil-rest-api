@@ -17,12 +17,17 @@ import {
   resolveFeatureRestRoute,
   resolveModelCrudRoutes,
   seedRouteRegistry,
-  type RestFeatureRouteOptions,
-  type RestHttpMethod,
-  type RouteRegistry,
-} from '@node-in-layers/rest-client'
+} from '@node-in-layers/rest-client/core/libs/index.js'
+import type {
+  RestFeatureRouteOptions,
+  RestHttpMethod,
+  RouteRegistry,
+} from '@node-in-layers/rest-client/core/types.js'
 import { RestApiNamespace } from '../common/types.js'
-import type { ExpressFunctions } from '../express/types.js'
+import type {
+  ExpressControllerFunc,
+  ExpressFunctions,
+} from '../express/types.js'
 import { crossLayerPropsFromExpressRequest } from './expressLibs.js'
 import type {
   RegisterAnnotatedFeaturesOptions,
@@ -30,6 +35,26 @@ import type {
 } from './types.js'
 
 const EXPRESS_NAMESPACE = RestApiNamespace.express
+
+type RegisterableFeature = ((
+  args: Record<string, unknown>,
+  crossLayerProps?: Parameters<typeof crossLayerPropsFromExpressRequest>[1]
+) => Promise<unknown>) &
+  Parameters<typeof annotationPropsFromNilFunction>[0]
+
+type FeatureRegistrationConfig = Readonly<{
+  urlPrefix: string
+  allowDomains?: readonly string[]
+  hideDomains?: readonly string[]
+  hideFeatures?: Readonly<Record<string, readonly string[]>>
+  featureRoutes: Readonly<Record<string, RestFeatureRouteOptions>>
+}>
+
+type FeatureRegistrationEntry = Readonly<{
+  domainName: string
+  featureName: string
+  feature: RegisterableFeature
+}>
 
 const _isDomainHidden = (
   domain: string,
@@ -101,6 +126,182 @@ const _validateFeatureRoutesConfig = (
   })
 }
 
+const _isRegisterableFeature = (
+  feature: unknown
+): feature is RegisterableFeature =>
+  typeof feature === 'function' && isNilAnnotatedFunction(feature)
+
+const _isFrameworkDomain = (domainName: string): boolean =>
+  domainName.startsWith('@node-in-layers/rest-api')
+
+const _shouldRegisterDomain = (
+  domainName: string,
+  config: FeatureRegistrationConfig
+): boolean => {
+  if (config.allowDomains && !config.allowDomains.includes(domainName)) {
+    return false
+  }
+  if (_isDomainHidden(domainName, config.hideDomains)) {
+    return false
+  }
+  return !_isFrameworkDomain(domainName)
+}
+
+const _shouldRegisterFeature = (
+  domainName: string,
+  featureName: string,
+  feature: unknown,
+  config: FeatureRegistrationConfig
+): feature is RegisterableFeature => {
+  if (!_isRegisterableFeature(feature)) {
+    return false
+  }
+  return !_isFeatureHidden(domainName, featureName, config.hideFeatures)
+}
+
+const _resolveRegistrationConfig = (
+  context: FeaturesContext<Config & RestApiFeaturesConfigLayer>,
+  options?: RegisterAnnotatedFeaturesOptions
+): FeatureRegistrationConfig => {
+  const featuresConfig = context.config[RestApiNamespace.features]
+  return {
+    urlPrefix:
+      options?.urlPrefix ??
+      featuresConfig?.urlPrefix ??
+      context.config[RestApiNamespace.express]?.urlPrefix ??
+      '/',
+    allowDomains: options?.domains ?? featuresConfig?.domains,
+    hideDomains: options?.hideDomains ?? featuresConfig?.hideDomains,
+    hideFeatures: options?.hideFeatures ?? featuresConfig?.hideFeatures,
+    featureRoutes: {
+      ...(featuresConfig?.featureRoutes ?? {}),
+      ...(options?.featureRoutes ?? {}),
+    },
+  }
+}
+
+const _getExpressHost = (
+  context: FeaturesContext<Config & RestApiFeaturesConfigLayer>
+): ExpressFunctions => {
+  const expressHost = context[EXPRESS_NAMESPACE] as ExpressFunctions | undefined
+  if (!expressHost?.addRoute) {
+    throw new Error(
+      `registerAnnotatedFeatures requires express layer "${EXPRESS_NAMESPACE}" on context`
+    )
+  }
+  return expressHost
+}
+
+const _collectFeatureRegistrationEntries = (
+  context: FeaturesContext<Config & RestApiFeaturesConfigLayer>,
+  config: FeatureRegistrationConfig
+): ReadonlyArray<FeatureRegistrationEntry> => {
+  const allFeatures = context.features as Record<
+    string,
+    Record<string, unknown>
+  >
+
+  return Object.entries(allFeatures).flatMap(([domainName, domainFeatures]) => {
+    if (!_shouldRegisterDomain(domainName, config)) {
+      return []
+    }
+
+    return Object.entries(domainFeatures).flatMap(([featureName, feature]) => {
+      if (!_shouldRegisterFeature(domainName, featureName, feature, config)) {
+        return []
+      }
+
+      return [
+        {
+          domainName,
+          featureName,
+          feature,
+        },
+      ]
+    })
+  })
+}
+
+const _sendFeatureResult = (res: Response, result: unknown): void => {
+  if (isErrorObject(result)) {
+    res.status(StatusCodes.BAD_REQUEST).json(result)
+    return
+  }
+
+  res.status(StatusCodes.OK).json(result)
+}
+
+const _sendFeatureError = (res: Response, error: unknown): void => {
+  if (isErrorObject(error)) {
+    res.status(StatusCodes.BAD_REQUEST).json(error)
+    return
+  }
+
+  res
+    .status(StatusCodes.INTERNAL_SERVER_ERROR)
+    .json(
+      createErrorObject(
+        'UNCAUGHT_EXCEPTION',
+        'An uncaught exception occurred while executing the feature.',
+        error
+      ) as ErrorObject
+    )
+}
+
+const _createFeatureHandler = (
+  feature: RegisterableFeature
+): ExpressControllerFunc => {
+  return (req: Request, res: Response) => {
+    const body = (req.body ?? {}) as {
+      args?: Record<string, unknown>
+      crossLayerProps?: Record<string, unknown>
+    }
+    const args = (body.args ?? body) as Record<string, unknown>
+    const crossLayerProps = crossLayerPropsFromExpressRequest(
+      req,
+      body.crossLayerProps as Parameters<
+        typeof crossLayerPropsFromExpressRequest
+      >[1]
+    )
+
+    return feature(args, crossLayerProps)
+      .then(result => {
+        _sendFeatureResult(res, result)
+      })
+      .catch(error => {
+        _sendFeatureError(res, error)
+      })
+  }
+}
+
+const _registerFeatureEntry = (
+  registry: RouteRegistry,
+  expressHost: ExpressFunctions,
+  config: FeatureRegistrationConfig,
+  entry: FeatureRegistrationEntry
+): RouteRegistry => {
+  const routeKey = featureRouteKey(entry.domainName, entry.featureName)
+  const routeOptions: RestFeatureRouteOptions = {
+    urlPrefix: config.urlPrefix,
+    ...(config.featureRoutes[routeKey] ?? {}),
+  }
+  const props = annotationPropsFromNilFunction(entry.feature)
+  const route = resolveFeatureRestRoute(props, routeOptions)
+  const nextRegistry = registerRoute(registry, {
+    method: route.method,
+    path: route.path,
+    source: `feature ${routeKey}`,
+  })
+
+  expressHost.addRoute(
+    route.method,
+    route.path,
+    _createFeatureHandler(entry.feature)
+  )
+
+  return nextRegistry
+}
+
 export const getSharedRouteRegistry = (): RouteRegistry | undefined =>
   _sharedRegistry
 
@@ -127,113 +328,25 @@ export const registerAnnotatedFeatures = (
     return
   }
 
-  const expressHost = context[EXPRESS_NAMESPACE] as ExpressFunctions | undefined
-  if (!expressHost?.addRoute) {
-    throw new Error(
-      `registerAnnotatedFeatures requires express layer "${EXPRESS_NAMESPACE}" on context`
-    )
+  const expressHost = _getExpressHost(context)
+  const config = _resolveRegistrationConfig(context, options)
+
+  if (Object.keys(config.featureRoutes).length > 0) {
+    _validateFeatureRoutesConfig(config.featureRoutes, config.urlPrefix)
   }
 
-  const urlPrefix =
-    options?.urlPrefix ??
-    featuresConfig?.urlPrefix ??
-    context.config[RestApiNamespace.express]?.urlPrefix ??
-    '/'
+  const baseRegistry =
+    options?.registry ?? _sharedRegistry ?? createRouteRegistry()
+  const seededRegistry = seedRouteRegistry(
+    baseRegistry,
+    _collectModelCrudSeeds(context)
+  )
+  const registeredRegistry = _collectFeatureRegistrationEntries(
+    context,
+    config
+  ).reduce((registry, entry) => {
+    return _registerFeatureEntry(registry, expressHost, config, entry)
+  }, seededRegistry)
 
-  const hideDomains = options?.hideDomains ?? featuresConfig?.hideDomains
-  const hideFeatures = options?.hideFeatures ?? featuresConfig?.hideFeatures
-  const allowDomains = options?.domains ?? featuresConfig?.domains
-  const featureRoutes = {
-    ...(featuresConfig?.featureRoutes ?? {}),
-    ...(options?.featureRoutes ?? {}),
-  }
-
-  if (Object.keys(featureRoutes).length > 0) {
-    _validateFeatureRoutesConfig(featureRoutes, urlPrefix)
-  }
-
-  // eslint-disable-next-line functional/no-let
-  let registry = options?.registry ?? _sharedRegistry ?? createRouteRegistry()
-  registry = seedRouteRegistry(registry, _collectModelCrudSeeds(context))
-  _sharedRegistry = registry
-
-  const allFeatures = context.features as Record<
-    string,
-    Record<string, unknown>
-  >
-
-  Object.entries(allFeatures).forEach(([domainName, domainFeatures]) => {
-    if (allowDomains && !allowDomains.includes(domainName)) {
-      return
-    }
-    if (_isDomainHidden(domainName, hideDomains)) {
-      return
-    }
-    if (domainName.startsWith('@node-in-layers/rest-api')) {
-      return
-    }
-
-    Object.entries(domainFeatures).forEach(([featureName, feature]) => {
-      if (typeof feature !== 'function' || !isNilAnnotatedFunction(feature)) {
-        return
-      }
-      if (_isFeatureHidden(domainName, featureName, hideFeatures)) {
-        return
-      }
-
-      const routeKey = featureRouteKey(domainName, featureName)
-      const routeOptions: RestFeatureRouteOptions = {
-        urlPrefix,
-        ...(featureRoutes[routeKey] ?? {}),
-      }
-      const props = annotationPropsFromNilFunction(feature)
-      const route = resolveFeatureRestRoute(props, routeOptions)
-
-      registry = registerRoute(registry, {
-        method: route.method,
-        path: route.path,
-        source: `feature ${routeKey}`,
-      })
-      _sharedRegistry = registry
-
-      const handler = async (req: Request, res: Response) => {
-        const body = (req.body ?? {}) as {
-          args?: Record<string, unknown>
-          crossLayerProps?: Record<string, unknown>
-        }
-        const args = (body.args ?? body) as Record<string, unknown>
-        const crossLayerProps = crossLayerPropsFromExpressRequest(
-          req,
-          body.crossLayerProps as Parameters<
-            typeof crossLayerPropsFromExpressRequest
-          >[1]
-        )
-
-        try {
-          const result = await feature(args, crossLayerProps)
-          if (isErrorObject(result)) {
-            res.status(StatusCodes.BAD_REQUEST).json(result)
-            return
-          }
-          res.status(StatusCodes.OK).json(result)
-        } catch (e) {
-          if (isErrorObject(e)) {
-            res.status(StatusCodes.BAD_REQUEST).json(e)
-            return
-          }
-          res
-            .status(StatusCodes.INTERNAL_SERVER_ERROR)
-            .json(
-              createErrorObject(
-                'UNCAUGHT_EXCEPTION',
-                'An uncaught exception occurred while executing the feature.',
-                e
-              ) as ErrorObject
-            )
-        }
-      }
-
-      expressHost.addRoute(route.method, route.path, handler)
-    })
-  })
+  _sharedRegistry = registeredRegistry
 }

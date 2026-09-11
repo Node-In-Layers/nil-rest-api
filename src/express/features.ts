@@ -3,21 +3,17 @@ import omit from 'lodash/omit.js'
 import kebabCase from 'lodash/kebabCase.js'
 import { StatusCodes } from 'http-status-codes'
 import { asyncMap } from 'modern-async'
-import {
-  Config,
-  FeaturesContext,
-  ModelCrudsFunctions,
-} from '@node-in-layers/core/index.js'
+import { Config, FeaturesContext } from '@node-in-layers/core/index.js'
 import { DataServicesLayer } from '@node-in-layers/data/types.js'
-import { OrmModel, DataDescription, OrmSearch } from 'functional-models'
+import { DataDescription, OrmModel } from 'functional-models'
 import {
   ExpressFeaturesLayer,
   ModelCrudsController,
   ExpressFeatures,
+  ModelCrudsFunctions,
 } from './types.js'
 
 const create = (
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   context: FeaturesContext<Config, DataServicesLayer, ExpressFeaturesLayer>
 ): ExpressFeatures => {
   const modelCrudsRouter = <T extends DataDescription>(
@@ -51,9 +47,7 @@ const create = (
         await func(req, res)
       })(req, res)
       .catch(e => {
-        const logger = context.log.getFunctionLogger(
-          '@nil/rest-api/express:OverallException'
-        )
+        const logger = context.log.getInnerLogger(name)
         const errorObj = {
           error: {
             code: 'OverallException',
@@ -124,7 +118,7 @@ const create = (
       model,
       'search',
       async (log, req: Request, res: Response) => {
-        const data = req.body as OrmSearch
+        const data = req.body
         const response = await modelCrudsInterface.search(data)
         const instances = await asyncMap(
           response.instances,
@@ -143,7 +137,7 @@ const create = (
       'bulkInsert',
       async (log, req: Request, res: Response) => {
         const data = req.body
-        await modelCrudsInterface.bulkInsert(data)
+        await modelCrudsInterface.getModel().bulkInsert(data)
         res.status(StatusCodes.OK)
       }
     )
@@ -153,7 +147,7 @@ const create = (
       'bulkDelete',
       async (log, req: Request, res: Response) => {
         const data = req.body
-        await modelCrudsInterface.bulkDelete(data)
+        await modelCrudsInterface.getModel().bulkDelete(data)
         res.status(StatusCodes.OK)
       }
     )

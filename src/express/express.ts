@@ -1,20 +1,21 @@
 import { randomUUID } from 'node:crypto'
 import { StatusCodes } from 'http-status-codes'
-import { DataDescription } from 'functional-models'
 import Express, { Request, Response, Router } from 'express'
 import {
   ServicesContext,
   FeaturesContext,
-  ModelCrudsFunctions,
   LogLevelNames,
 } from '@node-in-layers/core'
 import { DataConfig } from '@node-in-layers/data/index.js'
+import type { RestHttpMethod } from '@node-in-layers/rest-client'
+import { DataDescription } from 'functional-models'
 import bodyParser from 'body-parser'
 import get from 'lodash/get.js'
 import pickBy from 'lodash/pickBy.js'
 import cors from 'cors'
 import compression from 'http-compression'
 import { RestApiNamespace } from '../common/types.js'
+import { registerExpressRoute } from '../features/registerAnnotatedFeatures.js'
 import {
   ExpressConfig,
   ExpressMethod,
@@ -26,10 +27,9 @@ import {
   ExpressFunctions,
   ExpressContext,
   ExpressLoggedControllerFunc,
+  ModelCrudsFunctions,
 } from './types.js'
 import { isExpressRouter, shouldIgnoreLoggingForRequest } from './libs.js'
-import type { RestHttpMethod } from '@node-in-layers/rest-client'
-import { registerExpressRoute } from '../features/registerAnnotatedFeatures.js'
 
 const DEFAULT_BODY_SIZE = 10
 const MAX_NORMAL_RESPONSE_LENGTH = 8192
@@ -228,7 +228,7 @@ const create = (
   const preRouteMiddleware: ExpressMiddleware[] = []
   const postRouteMiddleware: ExpressMiddleware[] = [
     // @ts-ignore
-    (err, req, res, next) => {
+    (err, _req, res) => {
       console.error(err.stack)
       // @ts-ignore
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({

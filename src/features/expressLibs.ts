@@ -1,10 +1,6 @@
 import merge from 'lodash/merge.js'
 import type { Request } from 'express'
-import {
-  combineCrossLayerProps,
-  createCrossLayerProps,
-  CrossLayerProps,
-} from '@node-in-layers/core'
+import { combineCrossLayerProps, CrossLayerProps } from '@node-in-layers/core'
 
 export type RequestInfo = Readonly<{
   headers: Record<string, string>
@@ -70,6 +66,8 @@ export const crossLayerPropsFromExpressRequest = (
   existing?: CrossLayerProps
 ): CrossLayerProps => {
   const requestInfo = buildRequestInfoFromExpressRequest(req)
-  const base = createCrossLayerProps({ requestInfo })
+  const base = {
+    requestInfo,
+  } as CrossLayerProps<Readonly<{ requestInfo: RequestInfo }>>
   return existing ? combineCrossLayerProps(base, existing) : base
 }

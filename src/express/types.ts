@@ -1,8 +1,21 @@
 import { Request, Response, Router } from 'express'
-import { OrmModel, DataDescription } from 'functional-models'
 import { Config, Logger, LogLevelNames } from '@node-in-layers/core/index.js'
-import { ModelCrudsFunctions } from '@node-in-layers/core/models/types.js'
+import {
+  DataDescription,
+  OrmModel,
+  OrmModelInstance,
+  OrmSearchResult,
+} from 'functional-models'
 import { RestApiNamespace } from '../common/types.js'
+
+type ModelCrudsFunctions<T extends DataDescription> = Readonly<{
+  getModel: () => OrmModel<T>
+  create: (data: unknown) => Promise<OrmModelInstance<T>>
+  retrieve: (id: string) => Promise<OrmModelInstance<T> | undefined>
+  update: (id: string, data: unknown) => Promise<OrmModelInstance<T>>
+  delete: (id: string) => Promise<unknown>
+  search: (search: unknown) => Promise<OrmSearchResult<T>>
+}>
 
 type ExpressServices = Readonly<object>
 
@@ -60,7 +73,8 @@ type ExpressFunctions = Readonly<{
   addPreRouteMiddleware: (middleware: ExpressMiddleware) => void
   addPostRouteMiddleware: (middleware: ExpressMiddleware) => void
   addModelCrudsInterface: <T extends DataDescription>(
-    modelCrudsInterface: ModelCrudsFunctions<T>
+    modelCrudsInterface: ModelCrudsFunctions<T>,
+    urlPrefix?: string
   ) => void
 }>
 
@@ -150,4 +164,5 @@ export {
   ExpressContext,
   ModelCrudsController,
   ExpressLoggedControllerFunc,
+  ModelCrudsFunctions,
 }
