@@ -72,6 +72,16 @@ type ExpressContext<T extends object = object> = Readonly<{
   express: ExpressLayer & T
 }>
 
+type ExpressLogIgnorePattern = string | RegExp
+
+type ExpressLoggingOptions = Readonly<{
+  requestLogLevel: LogLevelNames
+  responseLogLevel: LogLevelNames
+  requestLogDataCallback?: (req: Request) => object
+  responseLogDataCallback?: (req: Request) => object
+  ignoreEndpointPatterns?: readonly ExpressLogIgnorePattern[]
+}>
+
 type ExpressOptions = Readonly<{
   port: number
   urlPrefix?: string
@@ -83,12 +93,7 @@ type ExpressOptions = Readonly<{
    * https://expressjs.com/en/resources/middleware/session.html
    */
   session?: object
-  logging?: {
-    requestLogLevel: LogLevelNames
-    responseLogLevel: LogLevelNames
-    requestLogDataCallback?: (req: Request) => object
-    responseLogDataCallback?: (req: Request) => object
-  }
+  logging?: ExpressLoggingOptions
   jsonBodySizeLimitInMb?: number
   encodedBodySizeLimitInMb?: number
 }>
@@ -131,6 +136,8 @@ export {
   ExpressServicesLayer,
   ExpressFeatures,
   ExpressFeaturesLayer,
+  ExpressLogIgnorePattern,
+  ExpressLoggingOptions,
   ExpressConfig,
   ExpressOptions,
   ExpressRouter,

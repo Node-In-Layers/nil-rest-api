@@ -2,10 +2,10 @@
   "compilerOptions": {
     "target": "es5",
     "lib": ["es2021", "dom", "es2015"],
-    "module": "commonjs",
+    "module": "nodenext",
     "noEmit": true,
     "moduleResolution": "nodenext",
-    "rootDir": "./src",
+    "rootDir": ".",
     "allowJs": true,
     "declaration": true,
     "sourceMap": true,
@@ -14,8 +14,9 @@
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "noImplicitAny": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["node", "mocha"]
   },
-  "include": ["./src"],
+  "include": ["./src", "./test"],
   "exclude": ["node_modules", "dist", "features", "container"]
 }

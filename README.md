@@ -96,6 +96,11 @@ const data = {
 const express = {
   port: 8000,
   urlPrefix: '/my-service/',
+  logging: {
+    requestLogLevel: 'info',
+    responseLogLevel: 'info',
+    ignoreEndpointPatterns: ['/health', /^\/metrics$/],
+  },
 }
 
 export default () => ({
@@ -106,6 +111,8 @@ export default () => ({
   [RestApiNamespace.express]: express,
 })
 ```
+
+`logging.ignoreEndpointPatterns` skips both request and response logs for matching endpoints. String values match by path prefix, and `RegExp` values are tested against the request path without query parameters.
 
 ### Model CRUDS
 

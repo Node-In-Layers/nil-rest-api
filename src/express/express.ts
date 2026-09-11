@@ -27,7 +27,9 @@ import {
   ExpressContext,
   ExpressLoggedControllerFunc,
 } from './types.js'
-import { isExpressRouter } from './libs.js'
+import { isExpressRouter, shouldIgnoreLoggingForRequest } from './libs.js'
+import type { RestHttpMethod } from '@node-in-layers/rest-client'
+import { registerExpressRoute } from '../features/registerAnnotatedFeatures.js'
 
 const DEFAULT_BODY_SIZE = 10
 const MAX_NORMAL_RESPONSE_LENGTH = 8192
@@ -47,11 +49,23 @@ const create = (
     ExpressFeaturesLayer
   >
 ): ExpressFunctions => {
+  const options = context.config[RestApiNamespace.express]
+
   const logRequestMiddleware = (
     req: Request,
     res: Response,
     next: () => void
   ) => {
+    if (
+      shouldIgnoreLoggingForRequest({
+        req,
+        patterns: ignoreEndpointPatterns,
+      })
+    ) {
+      next()
+      return
+    }
+
     const logger = context.log
       .getIdLogger('logRequest', 'requestId', req.requestId)
       .applyData({
@@ -143,6 +157,16 @@ const create = (
   }
 
   const logResponse = async (req, res, next) => {
+    if (
+      shouldIgnoreLoggingForRequest({
+        req,
+        patterns: ignoreEndpointPatterns,
+      })
+    ) {
+      next()
+      return
+    }
+
     res.on('finish', () => {
       const logger = context.log
         .getIdLogger('logResponse', 'requestId', req.requestId)
@@ -185,7 +209,6 @@ const create = (
     next()
   }
 
-  const options = context.config[RestApiNamespace.express]
   if (!options) {
     throw new Error(`Must include ${RestApiNamespace.express} in the config`)
   }
@@ -194,6 +217,7 @@ const create = (
       `Must include ${RestApiNamespace.express}.port in the config`
     )
   }
+  const ignoreEndpointPatterns = options.logging?.ignoreEndpointPatterns
   const routes: (ExpressRoute | ExpressRouter)[] = []
   const _preRouteMiddleware: ExpressMiddleware[] = [
     requestIdMiddleware,
@@ -235,7 +259,6 @@ const create = (
       logger.info('Executing route')
       return Promise.resolve()
         .then(async () => {
-
           return func(logger, req, res)
         })
         .then(() => {
@@ -263,6 +286,11 @@ const create = (
     route: string,
     func: ExpressControllerFunc
   ) => {
+    registerExpressRoute(
+      method as RestHttpMethod,
+      route,
+      `manual route: ${method} ${route}`
+    )
     // eslint-disable-next-line functional/immutable-data
     routes.push({ method, route, func })
   }
