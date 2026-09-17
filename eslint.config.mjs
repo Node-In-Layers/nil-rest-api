@@ -84,6 +84,17 @@ export default [
     },
     rules: {
       '@typescript-eslint/no-explicit-any': 0,
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          vars: 'all',
+          varsIgnorePattern: '^_',
+          argsIgnorePattern: '(^_)|(action)',
+          caughtErrorsIgnorePattern: '^_',
+          args: 'after-used',
+          ignoreRestSiblings: false,
+        },
+      ],
       '@typescript-eslint/ban-ts-comment': 0,
       'no-await-in-loop': ['error'],
       'no-console': [
@@ -271,15 +282,7 @@ export default [
       },
     },
     rules: {
-      '@typescript-eslint/no-unused-vars': [
-        'error',
-        {
-          vars: 'all',
-          argsIgnorePattern: '(_+)|(action)',
-          args: 'after-used',
-          ignoreRestSiblings: false,
-        },
-      ],
+      '@typescript-eslint/no-unused-vars': 0,
     },
   },
   {

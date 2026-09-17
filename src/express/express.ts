@@ -2,9 +2,12 @@ import { randomUUID } from 'node:crypto'
 import { StatusCodes } from 'http-status-codes'
 import Express, { Request, Response, Router } from 'express'
 import {
+  createCrossLayerProps,
   ServicesContext,
   FeaturesContext,
   LogLevelNames,
+  Logger,
+  ModelCrudsFunctions,
 } from '@node-in-layers/core'
 import { DataConfig } from '@node-in-layers/data/index.js'
 import { DataDescription } from 'functional-models'
@@ -15,6 +18,7 @@ import cors from 'cors'
 import compression from 'http-compression'
 import { RestApiNamespace } from '../common/types.js'
 import { registerAnnotatedFeatures } from '../features/registerAnnotatedFeatures.js'
+import { crossLayerPropsFromExpressRequest } from '../features/expressLibs.js'
 import {
   ExpressConfig,
   ExpressAutoRegistrationContext,
@@ -27,7 +31,6 @@ import {
   ExpressFunctions,
   ExpressContext,
   ExpressLoggedControllerFunc,
-  ModelCrudsFunctions,
 } from './types.js'
 import { isExpressRouter, shouldIgnoreLoggingForRequest } from './libs.js'
 
@@ -51,6 +54,95 @@ const create = (
 ): ExpressFunctions => {
   const options = context.config[RestApiNamespace.express]
 
+  const getRequestLogger = (req: Request, name: string) => {
+    return context.log.getIdLogger(name, 'requestId', req.requestId)
+  }
+
+  const setRequestCrossLayerProps = (req: Request) => {
+    const existing = createCrossLayerProps(getRequestLogger(req, 'request'))
+    const crossLayerProps = crossLayerPropsFromExpressRequest(req, existing)
+    // eslint-disable-next-line functional/immutable-data
+    req._crossLayerProps = crossLayerProps
+    // eslint-disable-next-line functional/immutable-data
+    req.getRequestCrossLayerProps = () => {
+      return req._crossLayerProps
+    }
+    return crossLayerProps
+  }
+
+  const buildFunctionCallCrossLayerProps = (req: Request, logger: Logger) => {
+    return crossLayerPropsFromExpressRequest(
+      req,
+      createCrossLayerProps(logger, req.getRequestCrossLayerProps?.())
+    )
+  }
+
+  const _handleRouteError = (logger: Logger, res: Response, error: unknown) => {
+    const loggableError =
+      error instanceof Error
+        ? error
+        : new Error(
+            typeof error === 'string'
+              ? error
+              : 'An unknown route error occurred'
+          )
+    logger.error('An uncaught exception occurred while executing the route.', {
+      error: loggableError,
+    })
+    if (!res.headersSent) {
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        error: {
+          code: 'InternalServerError',
+          message: 'An unhandled exception occurred',
+        },
+      })
+    }
+  }
+
+  const createRouteFunc = (
+    method: ExpressMethod,
+    route: string,
+    name: string,
+    func: (args: {
+      logger: ReturnType<typeof getRequestLogger>
+      req: Request
+      res: Response
+      crossLayerProps: ReturnType<typeof crossLayerPropsFromExpressRequest>
+    }) => Promise<void> | void
+  ) => {
+    return (req: Request, res: Response) => {
+      const logger = getRequestLogger(req, 'logRoute')
+        .getIdLogger(name, 'functionCallId', randomUUID())
+        .applyData({
+          method,
+          route,
+        })
+      const crossLayerProps = buildFunctionCallCrossLayerProps(req, logger)
+
+      return Promise.resolve()
+        .then(async () => {
+          return func({
+            logger,
+            req,
+            res,
+            crossLayerProps,
+          })
+        })
+        .catch(error => {
+          _handleRouteError(logger, res, error)
+        })
+    }
+  }
+
+  const requestCrossLayerPropsMiddleware = (
+    req: Request,
+    _,
+    next: () => void
+  ) => {
+    setRequestCrossLayerProps(req)
+    next()
+  }
+
   const logRequestMiddleware = (
     req: Request,
     res: Response,
@@ -66,11 +158,10 @@ const create = (
       return
     }
 
-    const logger = context.log
-      .getIdLogger('logRequest', 'requestId', req.requestId)
-      .applyData({
-        requestId: req.requestId,
-      })
+    const logger = context.log.getInnerLogger(
+      'logRequest',
+      req.getRequestCrossLayerProps()
+    )
     const requestLogDataCallback =
       context.config[RestApiNamespace.express].logging
         ?.requestLogDataCallback || (() => ({}))
@@ -168,11 +259,10 @@ const create = (
     }
 
     res.on('finish', () => {
-      const logger = context.log
-        .getIdLogger('logResponse', 'requestId', req.requestId)
-        .applyData({
-          requestId: req.requestId,
-        })
+      const logger = context.log.getInnerLogger(
+        'logResponse',
+        req.getRequestCrossLayerProps()
+      )
       const level =
         context.config[RestApiNamespace.express].logging?.responseLogLevel ||
         DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
@@ -221,6 +311,7 @@ const create = (
   const routes: (ExpressRoute | ExpressRouter)[] = []
   const _preRouteMiddleware: ExpressMiddleware[] = [
     requestIdMiddleware,
+    requestCrossLayerPropsMiddleware,
     logRequestMiddleware,
     responseWrap,
     logResponse,
@@ -248,37 +339,15 @@ const create = (
     route: string,
     func: ExpressLoggedControllerFunc
   ) => {
-    const loggedRoute = async (req: Request, res: Response) => {
-      const name = func.name || `${method.toUpperCase()}:${route}`
-      const logger = context.log
-        .getIdLogger('logRoute', 'requestId', req.requestId)
-        .getIdLogger(name, 'functionCallId', randomUUID())
-        .applyData({
-          method,
-          route,
-        })
-
-      logger.info('Executing route')
-      return Promise.resolve()
-        .then(async () => {
-          return func(logger, req, res)
-        })
-        .then(() => {
-          logger.info('Route executed')
-        })
-        .catch(e => {
-          logger.error('Error executing route', {
-            error: e,
-          })
-          res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-            error: {
-              code: 'InternalServerError',
-              message: 'An unhandled exception occurred',
-            },
-          })
-          throw e
-        })
-    }
+    const name = func.name || `${method.toUpperCase()}:${route}`
+    const loggedRoute = createRouteFunc(
+      method,
+      route,
+      name,
+      ({ logger, req, res, crossLayerProps }) => {
+        return func(logger, req, res, crossLayerProps)
+      }
+    )
     // eslint-disable-next-line functional/immutable-data
     routes.push({ method, route, func: loggedRoute })
   }
@@ -288,8 +357,17 @@ const create = (
     route: string,
     func: ExpressControllerFunc
   ) => {
+    const name = func.name || `${method.toUpperCase()}:${route}`
+    const routeFunc = createRouteFunc(
+      method,
+      route,
+      name,
+      ({ req, res, crossLayerProps }) => {
+        return func(req, res, crossLayerProps)
+      }
+    )
     // eslint-disable-next-line functional/immutable-data
-    routes.push({ method, route, func })
+    routes.push({ method, route, func: routeFunc })
   }
 
   const addRouter = (router: Router) => {

@@ -3,14 +3,19 @@ import omit from 'lodash/omit.js'
 import kebabCase from 'lodash/kebabCase.js'
 import { StatusCodes } from 'http-status-codes'
 import { asyncMap } from 'modern-async'
-import { Config, FeaturesContext } from '@node-in-layers/core/index.js'
+import {
+  Config,
+  CrossLayerProps,
+  FeaturesContext,
+  ModelCrudsFunctions,
+} from '@node-in-layers/core'
 import { DataServicesLayer } from '@node-in-layers/data/types.js'
 import { DataDescription, OrmModel } from 'functional-models'
+import { crossLayerPropsFromExpressRequest } from '../features/expressLibs.js'
 import {
   ExpressFeaturesLayer,
   ModelCrudsController,
   ExpressFeatures,
-  ModelCrudsFunctions,
 } from './types.js'
 
 const create = (
@@ -44,7 +49,12 @@ const create = (
     const name = `${model.getName()}:${functionName}`
     return context.log
       ._logWrapAsync(name, async (log, req, res) => {
-        await func(req, res)
+        const crossLayerProps = crossLayerPropsFromExpressRequest(
+          req,
+          undefined,
+          log
+        )
+        await func(log, req, res, crossLayerProps)
       })(req, res)
       .catch(e => {
         const logger = context.log.getInnerLogger(name)
@@ -72,9 +82,14 @@ const create = (
     const create = _errorCatch(
       model,
       'create',
-      async (log, req: Request, res: Response) => {
+      async (
+        log,
+        req: Request,
+        res: Response,
+        crossLayerProps: CrossLayerProps
+      ) => {
         const data = req.body
-        const response = await modelCrudsInterface.create(data)
+        const response = await modelCrudsInterface.create(data, crossLayerProps)
         res.status(StatusCodes.OK).json(await response.toObj<T>())
       }
     )
@@ -82,10 +97,19 @@ const create = (
     const update = _errorCatch(
       model,
       'update',
-      async (log, req: Request, res: Response) => {
+      async (
+        log,
+        req: Request,
+        res: Response,
+        crossLayerProps: CrossLayerProps
+      ) => {
         const id = req.params.id
         const data = req.body
-        const response = await modelCrudsInterface.update(id, data)
+        const response = await modelCrudsInterface.update(
+          id,
+          data,
+          crossLayerProps
+        )
         res.status(StatusCodes.OK).json(await response.toObj<T>())
       }
     )
@@ -93,9 +117,17 @@ const create = (
     const retrieve = _errorCatch(
       model,
       'retrieve',
-      async (log, req: Request, res: Response) => {
+      async (
+        log,
+        req: Request,
+        res: Response,
+        crossLayerProps: CrossLayerProps
+      ) => {
         const data = req.params.id
-        const response = await modelCrudsInterface.retrieve(data)
+        const response = await modelCrudsInterface.retrieve(
+          data,
+          crossLayerProps
+        )
         if (response) {
           res.status(StatusCodes.OK).json(await response.toObj<T>())
         } else {
@@ -107,9 +139,14 @@ const create = (
     const del = _errorCatch(
       model,
       'delete',
-      async (log, req: Request, res: Response) => {
+      async (
+        log,
+        req: Request,
+        res: Response,
+        crossLayerProps: CrossLayerProps
+      ) => {
         const data = req.params.id
-        await modelCrudsInterface.delete(data)
+        await modelCrudsInterface.delete(data, crossLayerProps)
         res.status(StatusCodes.OK)
       }
     )
@@ -117,9 +154,14 @@ const create = (
     const search = _errorCatch(
       model,
       'search',
-      async (log, req: Request, res: Response) => {
+      async (
+        log,
+        req: Request,
+        res: Response,
+        crossLayerProps: CrossLayerProps
+      ) => {
         const data = req.body
-        const response = await modelCrudsInterface.search(data)
+        const response = await modelCrudsInterface.search(data, crossLayerProps)
         const instances = await asyncMap(
           response.instances,
           i => i.toObj<T>(),
@@ -135,9 +177,14 @@ const create = (
     const bulkInsert = _errorCatch(
       model,
       'bulkInsert',
-      async (log, req: Request, res: Response) => {
+      async (
+        log,
+        req: Request,
+        res: Response,
+        crossLayerProps: CrossLayerProps
+      ) => {
         const data = req.body
-        await modelCrudsInterface.getModel().bulkInsert(data)
+        await modelCrudsInterface.bulkInsert(data, crossLayerProps)
         res.status(StatusCodes.OK)
       }
     )
@@ -145,9 +192,14 @@ const create = (
     const bulkDelete = _errorCatch(
       model,
       'bulkDelete',
-      async (log, req: Request, res: Response) => {
+      async (
+        log,
+        req: Request,
+        res: Response,
+        crossLayerProps: CrossLayerProps
+      ) => {
         const data = req.body
-        await modelCrudsInterface.getModel().bulkDelete(data)
+        await modelCrudsInterface.bulkDelete(data, crossLayerProps)
         res.status(StatusCodes.OK)
       }
     )

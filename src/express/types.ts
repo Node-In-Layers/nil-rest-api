@@ -1,27 +1,15 @@
 import { Request, Response, Router } from 'express'
 import {
   Config,
+  CrossLayerProps,
   FeaturesContext,
   Logger,
   LogLevelNames,
-} from '@node-in-layers/core/index.js'
-import {
-  DataDescription,
-  OrmModel,
-  OrmModelInstance,
-  OrmSearchResult,
-} from 'functional-models'
+  ModelCrudsFunctions,
+} from '@node-in-layers/core'
+import { DataDescription, OrmModel } from 'functional-models'
 import { RestApiNamespace } from '../common/types.js'
 import type { RestApiFeaturesConfigLayer } from '../features/types.js'
-
-type ModelCrudsFunctions<T extends DataDescription> = Readonly<{
-  getModel: () => OrmModel<T>
-  create: (data: unknown) => Promise<OrmModelInstance<T>>
-  retrieve: (id: string) => Promise<OrmModelInstance<T> | undefined>
-  update: (id: string, data: unknown) => Promise<OrmModelInstance<T>>
-  delete: (id: string) => Promise<unknown>
-  search: (search: unknown) => Promise<OrmSearchResult<T>>
-}>
 
 type ExpressServices = Readonly<object>
 
@@ -129,13 +117,15 @@ type ExpressConfig = Config &
 
 type ExpressControllerFunc = (
   req: Request,
-  res: Response
+  res: Response,
+  crossLayerProps?: CrossLayerProps
 ) => Promise<void> | void
 
 type ExpressLoggedControllerFunc = (
   log: Logger,
   req: Request,
-  res: Response
+  res: Response,
+  crossLayerProps?: CrossLayerProps
 ) => Promise<void> | void
 
 type ExpressMiddleware = (
@@ -175,5 +165,4 @@ export {
   ExpressContext,
   ModelCrudsController,
   ExpressLoggedControllerFunc,
-  ModelCrudsFunctions,
 }

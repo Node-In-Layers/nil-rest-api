@@ -1,6 +1,11 @@
 import merge from 'lodash/merge.js'
 import type { Request } from 'express'
-import { combineCrossLayerProps, CrossLayerProps } from '@node-in-layers/core'
+import {
+  combineCrossLayerProps,
+  createCrossLayerProps,
+  CrossLayerProps,
+  Logger,
+} from '@node-in-layers/core'
 
 export type RequestInfo = Readonly<{
   headers: Record<string, string>
@@ -12,6 +17,12 @@ export type RequestInfo = Readonly<{
   url: string
   protocol: string
 }>
+
+export type RequestCrossLayerProps = CrossLayerProps<
+  Readonly<{
+    requestInfo: RequestInfo
+  }>
+>
 
 export const buildRequestInfoFromExpressRequest = (
   req: Request
@@ -63,11 +74,20 @@ export const buildRequestInfoFromExpressRequest = (
 
 export const crossLayerPropsFromExpressRequest = (
   req: Request,
-  existing?: CrossLayerProps
+  existing?: CrossLayerProps,
+  logger?: Logger
 ): CrossLayerProps => {
-  const requestInfo = buildRequestInfoFromExpressRequest(req)
-  const base = {
-    requestInfo,
-  } as CrossLayerProps<Readonly<{ requestInfo: RequestInfo }>>
-  return existing ? combineCrossLayerProps(base, existing) : base
+  const base =
+    req.getRequestCrossLayerProps?.() ||
+    req._crossLayerProps ||
+    ({
+      requestInfo: buildRequestInfoFromExpressRequest(req),
+    } as RequestCrossLayerProps)
+  const mergedCrossLayerProps = existing
+    ? combineCrossLayerProps(existing, base)
+    : base
+
+  return logger
+    ? createCrossLayerProps(logger, mergedCrossLayerProps)
+    : mergedCrossLayerProps
 }

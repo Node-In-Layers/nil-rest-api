@@ -2,7 +2,9 @@ import { Request, Response } from 'express'
 import { StatusCodes } from 'http-status-codes'
 import get from 'lodash/get.js'
 import {
+  combineCrossLayerProps,
   Config,
+  CrossLayerProps,
   createErrorObject,
   ErrorObject,
   FeaturesContext,
@@ -251,20 +253,18 @@ const _sendFeatureError = (res: Response, error: unknown): void => {
 const _createFeatureHandler = (
   feature: RegisterableFeature
 ): ExpressControllerFunc => {
-  return (req: Request, res: Response) => {
+  return (req: Request, res: Response, crossLayerProps?: CrossLayerProps) => {
     const body = (req.body ?? {}) as {
       args?: Record<string, unknown>
       crossLayerProps?: Record<string, unknown>
     }
     const args = (body.args ?? body) as Record<string, unknown>
-    const crossLayerProps = crossLayerPropsFromExpressRequest(
-      req,
-      body.crossLayerProps as Parameters<
-        typeof crossLayerPropsFromExpressRequest
-      >[1]
+    const mergedCrossLayerProps = combineCrossLayerProps(
+      body.crossLayerProps || {},
+      crossLayerProps || crossLayerPropsFromExpressRequest(req)
     )
 
-    return feature(args, crossLayerProps)
+    return feature(args, mergedCrossLayerProps)
       .then(result => {
         _sendFeatureResult(res, result)
       })
