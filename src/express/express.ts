@@ -80,14 +80,17 @@ const create = (
     req: Request,
     logger: Logger,
     routeOptions?: ExpressRouteOptions
-  ) => {
+  ): ReturnType<typeof crossLayerPropsFromExpressRequest> => {
     const crossLayerProps = crossLayerPropsFromExpressRequest(
       req,
       createCrossLayerProps(logger, req.getRequestCrossLayerProps?.())
     )
 
     return routeOptions?.logging?.request?.omitData
-      ? crossLayerPropsWithLoggingOverrides({ omitData: true }, crossLayerProps)
+      ? (crossLayerPropsWithLoggingOverrides(
+          { omitData: true },
+          crossLayerProps
+        ) as ReturnType<typeof crossLayerPropsFromExpressRequest>)
       : crossLayerProps
   }
 

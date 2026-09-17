@@ -1,7 +1,6 @@
 import { Request, Response, Router } from 'express'
 import {
   Config,
-  CrossLayerProps,
   CrossLayerLoggingOverrides,
   FeaturesContext,
   Logger,
@@ -10,6 +9,7 @@ import {
 } from '@node-in-layers/core'
 import { DataDescription, OrmModel } from 'functional-models'
 import { RestApiNamespace } from '../common/types.js'
+import type { RequestCrossLayerProps } from '../features/expressLibs.js'
 import type { RestApiFeaturesConfigLayer } from '../features/types.js'
 
 type ExpressServices = Readonly<object>
@@ -127,17 +127,19 @@ type ExpressConfig = Config &
     [RestApiNamespace.express]: ExpressOptions
   }>
 
+type ExpressCrossLayerProps = RequestCrossLayerProps
+
 type ExpressControllerFunc = (
   req: Request,
   res: Response,
-  crossLayerProps?: CrossLayerProps
+  crossLayerProps?: ExpressCrossLayerProps
 ) => Promise<void> | void
 
 type ExpressLoggedControllerFunc = (
   log: Logger,
   req: Request,
   res: Response,
-  crossLayerProps?: CrossLayerProps
+  crossLayerProps?: ExpressCrossLayerProps
 ) => Promise<void> | void
 
 type ExpressMiddleware = (
@@ -174,6 +176,7 @@ export {
   ExpressMethod,
   ExpressMiddleware,
   ExpressRoute,
+  ExpressCrossLayerProps,
   ExpressControllerFunc,
   ExpressLayer,
   ExpressFunctions,

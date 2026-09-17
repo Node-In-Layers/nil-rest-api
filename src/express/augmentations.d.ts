@@ -1,10 +1,10 @@
-import type { CrossLayerProps } from '@node-in-layers/core'
+import type { RequestCrossLayerProps } from '../features/expressLibs.js'
 
 declare module 'express-serve-static-core' {
   interface Request {
     requestId?: string
-    _crossLayerProps?: CrossLayerProps
-    getRequestCrossLayerProps?: () => CrossLayerProps | undefined
+    _crossLayerProps?: RequestCrossLayerProps
+    getRequestCrossLayerProps?: () => RequestCrossLayerProps | undefined
   }
 
   interface Response {

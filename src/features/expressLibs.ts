@@ -76,18 +76,19 @@ export const crossLayerPropsFromExpressRequest = (
   req: Request,
   existing?: CrossLayerProps,
   logger?: Logger
-): CrossLayerProps => {
-  const base =
-    req.getRequestCrossLayerProps?.() ||
-    req._crossLayerProps ||
-    ({
+): RequestCrossLayerProps => {
+  const base: RequestCrossLayerProps = req.getRequestCrossLayerProps?.() ||
+    req._crossLayerProps || {
       requestInfo: buildRequestInfoFromExpressRequest(req),
-    } as RequestCrossLayerProps)
+    }
   const mergedCrossLayerProps = existing
     ? combineCrossLayerProps(existing, base)
     : base
 
   return logger
-    ? createCrossLayerProps(logger, mergedCrossLayerProps)
+    ? (createCrossLayerProps(
+        logger,
+        mergedCrossLayerProps
+      ) as RequestCrossLayerProps)
     : mergedCrossLayerProps
 }

@@ -4,7 +4,6 @@ import get from 'lodash/get.js'
 import {
   combineCrossLayerProps,
   Config,
-  CrossLayerProps,
   createErrorObject,
   ErrorObject,
   FeaturesContext,
@@ -27,6 +26,7 @@ import type {
 } from '@node-in-layers/rest-client/core/types.js'
 import { RestApiNamespace } from '../common/types.js'
 import type {
+  ExpressCrossLayerProps,
   ExpressControllerFunc,
   ExpressFunctions,
 } from '../express/types.js'
@@ -253,7 +253,11 @@ const _sendFeatureError = (res: Response, error: unknown): void => {
 const _createFeatureHandler = (
   feature: RegisterableFeature
 ): ExpressControllerFunc => {
-  return (req: Request, res: Response, crossLayerProps?: CrossLayerProps) => {
+  return (
+    req: Request,
+    res: Response,
+    crossLayerProps?: ExpressCrossLayerProps
+  ) => {
     const body = (req.body ?? {}) as {
       args?: Record<string, unknown>
       crossLayerProps?: Record<string, unknown>
