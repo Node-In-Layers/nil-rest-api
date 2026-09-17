@@ -6,6 +6,7 @@ export {
   getSharedRouteRegistry,
   registerExpressRoute,
 } from './features/registerAnnotatedFeatures.js'
+export * from './express/libs.js'
 export * from './express/types.js'
 export * from './common/types.js'
 export * from './features/types.js'

@@ -120,6 +120,44 @@ export default () => ({
 
 `logging.ignoreEndpointPatterns` skips both request and response logs for matching endpoints. String values match by path prefix, and `RegExp` values are tested against the request path without query parameters.
 
+You can also control request and response log payload omission on a per-route basis. Both `addRoute()` and `addLoggedRoute()` accept an optional fourth argument for route options:
+
+```typescript
+import { shouldOmitLoggingData } from '@node-in-layers/rest-api'
+
+system.express[RestApiNamespace.express].addRoute(
+  'post',
+  '/auth/login',
+  async (req, res, crossLayerProps) => {
+    res.status(200).json({ ok: true })
+  },
+  shouldOmitLoggingData(true, true)
+)
+```
+
+`shouldOmitLoggingData(request, response)` returns the route logging options object for you:
+
+- `request = true` omits the request body from the request log message and adds `logging.overrides.omitData` to the route's request `crossLayerProps`
+- `response = true` omits the response payload from the response log message
+
+If you prefer, you can pass the object directly:
+
+```typescript
+system.express[RestApiNamespace.express].addLoggedRoute(
+  'post',
+  '/auth/login',
+  async (log, req, res, crossLayerProps) => {
+    res.status(200).json({ ok: true })
+  },
+  {
+    logging: {
+      request: { omitData: true },
+      response: { omitData: true },
+    },
+  }
+)
+```
+
 ### Starting or building the app
 
 The express host now requires the full system object when you build or start the app:

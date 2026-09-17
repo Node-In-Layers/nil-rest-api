@@ -4,6 +4,7 @@ import {
   getRequestPath,
   matchesIgnoredEndpointPattern,
   shouldIgnoreLoggingForRequest,
+  shouldOmitLoggingData,
 } from '../../../src/express/libs.js'
 
 describe('/src/express/libs.ts', () => {
@@ -84,6 +85,32 @@ describe('/src/express/libs.ts', () => {
       const expected = false
 
       assert.equal(actual, expected)
+    })
+  })
+
+  describe('#shouldOmitLoggingData()', () => {
+    it('should build route logging options for request and response omitData flags', () => {
+      const input = {
+        omitRequestData: true,
+        omitResponseData: false,
+      }
+
+      const actual = shouldOmitLoggingData(
+        input.omitRequestData,
+        input.omitResponseData
+      )
+      const expected = {
+        logging: {
+          request: {
+            omitData: true,
+          },
+          response: {
+            omitData: false,
+          },
+        },
+      }
+
+      assert.deepEqual(actual, expected)
     })
   })
 })

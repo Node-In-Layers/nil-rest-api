@@ -2,6 +2,7 @@ import { Request, Response, Router } from 'express'
 import {
   Config,
   CrossLayerProps,
+  CrossLayerLoggingOverrides,
   FeaturesContext,
   Logger,
   LogLevelNames,
@@ -53,7 +54,8 @@ type ExpressFunctions = Readonly<{
   addRoute: (
     method: ExpressMethod,
     route: string,
-    func: ExpressControllerFunc
+    func: ExpressControllerFunc,
+    options?: ExpressRouteOptions
   ) => void
   addRouter: (router: Router) => void
   /**
@@ -66,7 +68,8 @@ type ExpressFunctions = Readonly<{
   addLoggedRoute: (
     method: ExpressMethod,
     route: string,
-    func: ExpressLoggedControllerFunc
+    func: ExpressLoggedControllerFunc,
+    options?: ExpressRouteOptions
   ) => void
   addPreRouteMiddleware: (middleware: ExpressMiddleware) => void
   addPostRouteMiddleware: (middleware: ExpressMiddleware) => void
@@ -92,6 +95,15 @@ type ExpressLoggingOptions = Readonly<{
   requestLogDataCallback?: (req: Request) => object
   responseLogDataCallback?: (req: Request) => object
   ignoreEndpointPatterns?: readonly ExpressLogIgnorePattern[]
+}>
+
+type ExpressRouteLoggingOptions = Readonly<{
+  request?: CrossLayerLoggingOverrides
+  response?: CrossLayerLoggingOverrides
+}>
+
+type ExpressRouteOptions = Readonly<{
+  logging?: ExpressRouteLoggingOptions
 }>
 
 type ExpressOptions = Readonly<{
@@ -139,6 +151,7 @@ type ExpressRoute = Readonly<{
   method: ExpressMethod
   route: string
   func: ExpressControllerFunc
+  options?: ExpressRouteOptions
 }>
 
 type ExpressRouter = Readonly<{
@@ -153,6 +166,8 @@ export {
   ExpressAutoRegistrationContext,
   ExpressLogIgnorePattern,
   ExpressLoggingOptions,
+  ExpressRouteLoggingOptions,
+  ExpressRouteOptions,
   ExpressConfig,
   ExpressOptions,
   ExpressRouter,

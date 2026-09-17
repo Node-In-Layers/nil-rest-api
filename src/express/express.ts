@@ -3,6 +3,7 @@ import { StatusCodes } from 'http-status-codes'
 import Express, { Request, Response, Router } from 'express'
 import {
   createCrossLayerProps,
+  crossLayerPropsWithLoggingOverrides,
   ServicesContext,
   FeaturesContext,
   LogLevelNames,
@@ -31,8 +32,13 @@ import {
   ExpressFunctions,
   ExpressContext,
   ExpressLoggedControllerFunc,
+  ExpressRouteOptions,
 } from './types.js'
-import { isExpressRouter, shouldIgnoreLoggingForRequest } from './libs.js'
+import {
+  getRouteLoggingOptionsForRequest,
+  isExpressRouter,
+  shouldIgnoreLoggingForRequest,
+} from './libs.js'
 
 const DEFAULT_BODY_SIZE = 10
 const MAX_NORMAL_RESPONSE_LENGTH = 8192
@@ -70,11 +76,19 @@ const create = (
     return crossLayerProps
   }
 
-  const buildFunctionCallCrossLayerProps = (req: Request, logger: Logger) => {
-    return crossLayerPropsFromExpressRequest(
+  const buildFunctionCallCrossLayerProps = (
+    req: Request,
+    logger: Logger,
+    routeOptions?: ExpressRouteOptions
+  ) => {
+    const crossLayerProps = crossLayerPropsFromExpressRequest(
       req,
       createCrossLayerProps(logger, req.getRequestCrossLayerProps?.())
     )
+
+    return routeOptions?.logging?.request?.omitData
+      ? crossLayerPropsWithLoggingOverrides({ omitData: true }, crossLayerProps)
+      : crossLayerProps
   }
 
   const _handleRouteError = (logger: Logger, res: Response, error: unknown) => {
@@ -103,6 +117,7 @@ const create = (
     method: ExpressMethod,
     route: string,
     name: string,
+    routeOptions: ExpressRouteOptions | undefined,
     func: (args: {
       logger: ReturnType<typeof getRequestLogger>
       req: Request
@@ -117,7 +132,11 @@ const create = (
           method,
           route,
         })
-      const crossLayerProps = buildFunctionCallCrossLayerProps(req, logger)
+      const crossLayerProps = buildFunctionCallCrossLayerProps(
+        req,
+        logger,
+        routeOptions
+      )
 
       return Promise.resolve()
         .then(async () => {
@@ -143,6 +162,12 @@ const create = (
     next()
   }
 
+  const getRegisteredRoutes = (): ExpressRoute[] => {
+    return routes.filter((route): route is ExpressRoute => {
+      return !isExpressRouter(route)
+    })
+  }
+
   const logRequestMiddleware = (
     req: Request,
     res: Response,
@@ -162,6 +187,10 @@ const create = (
       'logRequest',
       req.getRequestCrossLayerProps()
     )
+    const routeLoggingOptions = getRouteLoggingOptionsForRequest({
+      req,
+      routes: getRegisteredRoutes(),
+    })
     const requestLogDataCallback =
       context.config[RestApiNamespace.express].logging
         ?.requestLogDataCallback || (() => ({}))
@@ -172,8 +201,8 @@ const create = (
     logger[level]('Request received', {
       method: req.method,
       url: req.url,
-      body: req.body,
       callerIp: req.ip,
+      ...(routeLoggingOptions?.request?.omitData ? {} : { body: req.body }),
       ...requestLogData,
     })
     next()
@@ -263,6 +292,10 @@ const create = (
         'logResponse',
         req.getRequestCrossLayerProps()
       )
+      const routeLoggingOptions = getRouteLoggingOptionsForRequest({
+        req,
+        routes: getRegisteredRoutes(),
+      })
       const level =
         context.config[RestApiNamespace.express].logging?.responseLogLevel ||
         DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
@@ -290,7 +323,9 @@ const create = (
           redirectPath: res.redirectPath,
         }),
         status: res.actualStatus,
-        response: _getResponse(),
+        ...(routeLoggingOptions?.response?.omitData
+          ? {}
+          : { response: _getResponse() }),
         ...responseLogData,
       }
 
@@ -337,37 +372,41 @@ const create = (
   const addLoggedRoute = (
     method: ExpressMethod,
     route: string,
-    func: ExpressLoggedControllerFunc
+    func: ExpressLoggedControllerFunc,
+    options?: ExpressRouteOptions
   ) => {
     const name = func.name || `${method.toUpperCase()}:${route}`
     const loggedRoute = createRouteFunc(
       method,
       route,
       name,
+      options,
       ({ logger, req, res, crossLayerProps }) => {
         return func(logger, req, res, crossLayerProps)
       }
     )
     // eslint-disable-next-line functional/immutable-data
-    routes.push({ method, route, func: loggedRoute })
+    routes.push({ method, route, func: loggedRoute, options })
   }
 
   const addRoute = (
     method: ExpressMethod,
     route: string,
-    func: ExpressControllerFunc
+    func: ExpressControllerFunc,
+    options?: ExpressRouteOptions
   ) => {
     const name = func.name || `${method.toUpperCase()}:${route}`
     const routeFunc = createRouteFunc(
       method,
       route,
       name,
+      options,
       ({ req, res, crossLayerProps }) => {
         return func(req, res, crossLayerProps)
       }
     )
     // eslint-disable-next-line functional/immutable-data
-    routes.push({ method, route, func: routeFunc })
+    routes.push({ method, route, func: routeFunc, options })
   }
 
   const addRouter = (router: Router) => {
