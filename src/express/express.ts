@@ -76,22 +76,11 @@ const create = (
     return crossLayerProps
   }
 
-  const buildFunctionCallCrossLayerProps = (
-    req: Request,
-    logger: Logger,
-    routeOptions?: ExpressRouteOptions
-  ): ReturnType<typeof crossLayerPropsFromExpressRequest> => {
-    const crossLayerProps = crossLayerPropsFromExpressRequest(
+  const buildFunctionCallCrossLayerProps = (req: Request, logger: Logger) => {
+    return crossLayerPropsFromExpressRequest(
       req,
       createCrossLayerProps(logger, req.getRequestCrossLayerProps?.())
     )
-
-    return routeOptions?.logging?.request?.omitData
-      ? (crossLayerPropsWithLoggingOverrides(
-          { omitData: true },
-          crossLayerProps
-        ) as ReturnType<typeof crossLayerPropsFromExpressRequest>)
-      : crossLayerProps
   }
 
   const _handleRouteError = (logger: Logger, res: Response, error: unknown) => {
@@ -120,7 +109,6 @@ const create = (
     method: ExpressMethod,
     route: string,
     name: string,
-    routeOptions: ExpressRouteOptions | undefined,
     func: (args: {
       logger: ReturnType<typeof getRequestLogger>
       req: Request
@@ -135,11 +123,7 @@ const create = (
           method,
           route,
         })
-      const crossLayerProps = buildFunctionCallCrossLayerProps(
-        req,
-        logger,
-        routeOptions
-      )
+      const crossLayerProps = buildFunctionCallCrossLayerProps(req, logger)
 
       return Promise.resolve()
         .then(async () => {
@@ -165,12 +149,6 @@ const create = (
     next()
   }
 
-  const getRegisteredRoutes = (): ExpressRoute[] => {
-    return routes.filter((route): route is ExpressRoute => {
-      return !isExpressRouter(route)
-    })
-  }
-
   const logRequestMiddleware = (
     req: Request,
     res: Response,
@@ -190,10 +168,6 @@ const create = (
       'logRequest',
       req.getRequestCrossLayerProps()
     )
-    const routeLoggingOptions = getRouteLoggingOptionsForRequest({
-      req,
-      routes: getRegisteredRoutes(),
-    })
     const requestLogDataCallback =
       context.config[RestApiNamespace.express].logging
         ?.requestLogDataCallback || (() => ({}))
@@ -204,8 +178,8 @@ const create = (
     logger[level]('Request received', {
       method: req.method,
       url: req.url,
+      body: req.body,
       callerIp: req.ip,
-      ...(routeLoggingOptions?.request?.omitData ? {} : { body: req.body }),
       ...requestLogData,
     })
     next()
@@ -295,10 +269,6 @@ const create = (
         'logResponse',
         req.getRequestCrossLayerProps()
       )
-      const routeLoggingOptions = getRouteLoggingOptionsForRequest({
-        req,
-        routes: getRegisteredRoutes(),
-      })
       const level =
         context.config[RestApiNamespace.express].logging?.responseLogLevel ||
         DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
@@ -326,9 +296,7 @@ const create = (
           redirectPath: res.redirectPath,
         }),
         status: res.actualStatus,
-        ...(routeLoggingOptions?.response?.omitData
-          ? {}
-          : { response: _getResponse() }),
+        response: _getResponse(),
         ...responseLogData,
       }
 
@@ -357,7 +325,7 @@ const create = (
   const preRouteMiddleware: ExpressMiddleware[] = []
   const postRouteMiddleware: ExpressMiddleware[] = [
     // @ts-ignore
-    (err, _req, res) => {
+    (err, _req, res, _next) => {
       console.error(err.stack)
       // @ts-ignore
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -375,41 +343,37 @@ const create = (
   const addLoggedRoute = (
     method: ExpressMethod,
     route: string,
-    func: ExpressLoggedControllerFunc,
-    options?: ExpressRouteOptions
+    func: ExpressLoggedControllerFunc
   ) => {
     const name = func.name || `${method.toUpperCase()}:${route}`
     const loggedRoute = createRouteFunc(
       method,
       route,
       name,
-      options,
       ({ logger, req, res, crossLayerProps }) => {
         return func(logger, req, res, crossLayerProps)
       }
     )
     // eslint-disable-next-line functional/immutable-data
-    routes.push({ method, route, func: loggedRoute, options })
+    routes.push({ method, route, func: loggedRoute })
   }
 
   const addRoute = (
     method: ExpressMethod,
     route: string,
-    func: ExpressControllerFunc,
-    options?: ExpressRouteOptions
+    func: ExpressControllerFunc
   ) => {
     const name = func.name || `${method.toUpperCase()}:${route}`
     const routeFunc = createRouteFunc(
       method,
       route,
       name,
-      options,
       ({ req, res, crossLayerProps }) => {
         return func(req, res, crossLayerProps)
       }
     )
     // eslint-disable-next-line functional/immutable-data
-    routes.push({ method, route, func: routeFunc, options })
+    routes.push({ method, route, func: routeFunc })
   }
 
   const addRouter = (router: Router) => {
