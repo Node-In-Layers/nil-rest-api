@@ -9,6 +9,7 @@ import {
   LogLevelNames,
   Logger,
   ModelCrudsFunctions,
+  createErrorObject,
 } from '@node-in-layers/core'
 import { DataConfig } from '@node-in-layers/data/index.js'
 import { DataDescription } from 'functional-models'
@@ -51,7 +52,7 @@ const requestIdMiddleware = (req: Request, _, next: () => void) => {
   next()
 }
 
-const create = (
+export const create = (
   context: FeaturesContext<
     DataConfig & ExpressConfig,
     ServicesContext,
@@ -77,13 +78,28 @@ const create = (
   }
 
   const buildFunctionCallCrossLayerProps = (req: Request, logger: Logger) => {
-    return crossLayerPropsFromExpressRequest(
+    const crossLayerProps = crossLayerPropsFromExpressRequest(
       req,
       createCrossLayerProps(logger, req.getRequestCrossLayerProps?.())
     )
+    const routeLogging = getRouteLoggingOptionsForRequest({
+      req,
+      routes: routes.filter(route => !isExpressRouter(route)) as ExpressRoute[],
+    })
+    return routeLogging?.request
+      ? (crossLayerPropsWithLoggingOverrides(
+          routeLogging.request,
+          crossLayerProps
+        ) as ReturnType<typeof crossLayerPropsFromExpressRequest>)
+      : crossLayerProps
   }
 
   const _handleRouteError = (logger: Logger, res: Response, error: unknown) => {
+    const errorObject = createErrorObject(
+      'UNCAUGHT_EXCEPTION',
+      'An unhandled exception occurred while executing the route.',
+      error
+    )
     const loggableError =
       error instanceof Error
         ? error
@@ -96,12 +112,7 @@ const create = (
       error: loggableError,
     })
     if (!res.headersSent) {
-      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-        error: {
-          code: 'InternalServerError',
-          message: 'An unhandled exception occurred',
-        },
-      })
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorObject)
     }
   }
 
@@ -164,9 +175,19 @@ const create = (
       return
     }
 
+    const routeLogging = getRouteLoggingOptionsForRequest({
+      req,
+      routes: routes.filter(route => !isExpressRouter(route)) as ExpressRoute[],
+    })
+    const requestCrossLayerProps = routeLogging?.request
+      ? crossLayerPropsWithLoggingOverrides(
+          routeLogging.request,
+          req.getRequestCrossLayerProps()
+        )
+      : req.getRequestCrossLayerProps()
     const logger = context.log.getInnerLogger(
       'logRequest',
-      req.getRequestCrossLayerProps()
+      requestCrossLayerProps
     )
     const requestLogDataCallback =
       context.config[RestApiNamespace.express].logging
@@ -178,7 +199,7 @@ const create = (
     logger[level]('Request received', {
       method: req.method,
       url: req.url,
-      body: req.body,
+      ...(routeLogging?.request?.omitData ? {} : { body: req.body }),
       callerIp: req.ip,
       ...requestLogData,
     })
@@ -265,9 +286,21 @@ const create = (
     }
 
     res.on('finish', () => {
+      const routeLogging = getRouteLoggingOptionsForRequest({
+        req,
+        routes: routes.filter(
+          route => !isExpressRouter(route)
+        ) as ExpressRoute[],
+      })
+      const responseCrossLayerProps = routeLogging?.response
+        ? crossLayerPropsWithLoggingOverrides(
+            routeLogging.response,
+            req.getRequestCrossLayerProps()
+          )
+        : req.getRequestCrossLayerProps()
       const logger = context.log.getInnerLogger(
         'logResponse',
-        req.getRequestCrossLayerProps()
+        responseCrossLayerProps
       )
       const level =
         context.config[RestApiNamespace.express].logging?.responseLogLevel ||
@@ -277,6 +310,9 @@ const create = (
           ?.responseLogDataCallback || (() => ({}))
       const responseLogData = responseLogDataCallback(req)
       const _getResponse = () => {
+        if (responseCrossLayerProps.logging?.overrides?.omitData) {
+          return undefined
+        }
         const response = res.actualSentJson
           ? res.actualSentJson
           : res.actualSent
@@ -291,12 +327,13 @@ const create = (
         return response
       }
 
+      const response = _getResponse()
       const data = {
         ...pickBy({
           redirectPath: res.redirectPath,
         }),
         status: res.actualStatus,
-        response: _getResponse(),
+        ...(response === undefined ? {} : { response }),
         ...responseLogData,
       }
 
@@ -327,13 +364,15 @@ const create = (
     // @ts-ignore
     (err, _req, res, _next) => {
       console.error(err.stack)
-      // @ts-ignore
-      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-        error: {
-          code: 'InternalServerError',
-          message: 'An unhandled exception occurred',
-        },
-      })
+      res
+        .status(StatusCodes.INTERNAL_SERVER_ERROR)
+        .json(
+          createErrorObject(
+            'UNCAUGHT_EXCEPTION',
+            'An unhandled exception occurred while executing the route.',
+            err
+          )
+        )
     },
   ]
   const expressUses: any[] = []
@@ -343,7 +382,8 @@ const create = (
   const addLoggedRoute = (
     method: ExpressMethod,
     route: string,
-    func: ExpressLoggedControllerFunc
+    func: ExpressLoggedControllerFunc,
+    options?: ExpressRouteOptions
   ) => {
     const name = func.name || `${method.toUpperCase()}:${route}`
     const loggedRoute = createRouteFunc(
@@ -355,13 +395,14 @@ const create = (
       }
     )
     // eslint-disable-next-line functional/immutable-data
-    routes.push({ method, route, func: loggedRoute })
+    routes.push({ method, route, func: loggedRoute, options })
   }
 
   const addRoute = (
     method: ExpressMethod,
     route: string,
-    func: ExpressControllerFunc
+    func: ExpressControllerFunc,
+    options?: ExpressRouteOptions
   ) => {
     const name = func.name || `${method.toUpperCase()}:${route}`
     const routeFunc = createRouteFunc(
@@ -373,7 +414,7 @@ const create = (
       }
     )
     // eslint-disable-next-line functional/immutable-data
-    routes.push({ method, route, func: routeFunc })
+    routes.push({ method, route, func: routeFunc, options })
   }
 
   const addRouter = (router: Router) => {
@@ -554,7 +595,7 @@ const create = (
   return _getExpressFunctions()
 }
 
-const expressModels =
+export const expressModels =
   (namespace: string) => (context: FeaturesContext & ExpressContext) => {
     const prefix = context.config[RestApiNamespace.express].urlPrefix
     const expressFunctions = context.express[RestApiNamespace.express]
@@ -581,5 +622,3 @@ const expressModels =
 
     return {}
   }
-
-export { create, expressModels }

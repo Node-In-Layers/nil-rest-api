@@ -12,13 +12,13 @@ import { RestApiNamespace } from '../common/types.js'
 import type { RequestCrossLayerProps } from '../features/expressLibs.js'
 import type { RestApiFeaturesConfigLayer } from '../features/types.js'
 
-type ExpressServices = Readonly<object>
+export type ExpressServices = Readonly<object>
 
-type ExpressServicesLayer = Readonly<{
+export type ExpressServicesLayer = Readonly<{
   [RestApiNamespace.express]: ExpressServices
 }>
 
-type ModelCrudsController = Readonly<{
+export type ModelCrudsController = Readonly<{
   create: ExpressControllerFunc
   retrieve: ExpressControllerFunc
   update: ExpressControllerFunc
@@ -28,7 +28,7 @@ type ModelCrudsController = Readonly<{
   bulkDelete: ExpressControllerFunc
 }>
 
-type ExpressFeatures = Readonly<{
+export type ExpressFeatures = Readonly<{
   modelCrudsRouter: <T extends DataDescription>(
     model: OrmModel<T>,
     controller: ModelCrudsController,
@@ -39,15 +39,15 @@ type ExpressFeatures = Readonly<{
   ) => ModelCrudsController
 }>
 
-type ExpressFeaturesLayer = Readonly<{
+export type ExpressFeaturesLayer = Readonly<{
   [RestApiNamespace.express]: ExpressFeatures
 }>
 
-type ExpressAutoRegistrationContext = FeaturesContext<
+export type ExpressAutoRegistrationContext = FeaturesContext<
   Config & RestApiFeaturesConfigLayer
 >
 
-type ExpressFunctions = Readonly<{
+export type ExpressFunctions = Readonly<{
   listen: (systemContext: ExpressAutoRegistrationContext) => void
   getApp: (systemContext: ExpressAutoRegistrationContext) => any
   addUse: (obj: any) => void
@@ -79,17 +79,17 @@ type ExpressFunctions = Readonly<{
   ) => void
 }>
 
-type ExpressLayer = Readonly<{
+export type ExpressLayer = Readonly<{
   [RestApiNamespace.express]: ExpressFunctions
 }>
 
-type ExpressContext<T extends object = object> = Readonly<{
+export type ExpressContext<T extends object = object> = Readonly<{
   express: ExpressLayer & T
 }>
 
-type ExpressLogIgnorePattern = string | RegExp
+export type ExpressLogIgnorePattern = string | RegExp
 
-type ExpressLoggingOptions = Readonly<{
+export type ExpressLoggingOptions = Readonly<{
   requestLogLevel: LogLevelNames
   responseLogLevel: LogLevelNames
   requestLogDataCallback?: (req: Request) => object
@@ -97,16 +97,16 @@ type ExpressLoggingOptions = Readonly<{
   ignoreEndpointPatterns?: readonly ExpressLogIgnorePattern[]
 }>
 
-type ExpressRouteLoggingOptions = Readonly<{
+export type ExpressRouteLoggingOptions = Readonly<{
   request?: CrossLayerLoggingOverrides
   response?: CrossLayerLoggingOverrides
 }>
 
-type ExpressRouteOptions = Readonly<{
+export type ExpressRouteOptions = Readonly<{
   logging?: ExpressRouteLoggingOptions
 }>
 
-type ExpressOptions = Readonly<{
+export type ExpressOptions = Readonly<{
   port: number
   urlPrefix?: string
   noCors?: boolean
@@ -122,65 +122,41 @@ type ExpressOptions = Readonly<{
   encodedBodySizeLimitInMb?: number
 }>
 
-type ExpressConfig = Config &
+export type ExpressConfig = Config &
   Readonly<{
     [RestApiNamespace.express]: ExpressOptions
   }>
 
-type ExpressCrossLayerProps = RequestCrossLayerProps
+export type ExpressCrossLayerProps = RequestCrossLayerProps
 
-type ExpressControllerFunc = (
+export type ExpressControllerFunc = (
   req: Request,
   res: Response,
   crossLayerProps?: ExpressCrossLayerProps
 ) => Promise<void> | void
 
-type ExpressLoggedControllerFunc = (
+export type ExpressLoggedControllerFunc = (
   log: Logger,
   req: Request,
   res: Response,
   crossLayerProps?: ExpressCrossLayerProps
 ) => Promise<void> | void
 
-type ExpressMiddleware = (
+export type ExpressMiddleware = (
   req: Request,
   res: Response,
   next: () => void
 ) => Promise<void> | void
-type ExpressMethod = 'get' | 'put' | 'post' | 'delete' | 'patch' | 'head'
 
-type ExpressRoute = Readonly<{
+export type ExpressMethod = 'get' | 'put' | 'post' | 'delete' | 'patch' | 'head'
+
+export type ExpressRoute = Readonly<{
   method: ExpressMethod
   route: string
   func: ExpressControllerFunc
   options?: ExpressRouteOptions
 }>
 
-type ExpressRouter = Readonly<{
+export type ExpressRouter = Readonly<{
   router: Router
 }>
-
-export {
-  ExpressServices,
-  ExpressServicesLayer,
-  ExpressFeatures,
-  ExpressFeaturesLayer,
-  ExpressAutoRegistrationContext,
-  ExpressLogIgnorePattern,
-  ExpressLoggingOptions,
-  ExpressRouteLoggingOptions,
-  ExpressRouteOptions,
-  ExpressConfig,
-  ExpressOptions,
-  ExpressRouter,
-  ExpressMethod,
-  ExpressMiddleware,
-  ExpressRoute,
-  ExpressCrossLayerProps,
-  ExpressControllerFunc,
-  ExpressLayer,
-  ExpressFunctions,
-  ExpressContext,
-  ModelCrudsController,
-  ExpressLoggedControllerFunc,
-}

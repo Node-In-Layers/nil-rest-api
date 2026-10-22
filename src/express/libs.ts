@@ -7,16 +7,16 @@ import {
   ExpressRouteLoggingOptions,
 } from './types.js'
 
-const isExpressRouter = (obj: any): obj is ExpressRouter => {
+export const isExpressRouter = (obj: any): obj is ExpressRouter => {
   return Boolean(obj.router)
 }
 
-const getRequestPath = (req: Pick<Request, 'originalUrl' | 'url'>) => {
+export const getRequestPath = (req: Pick<Request, 'originalUrl' | 'url'>) => {
   const url = req.originalUrl || req.url || '/'
   return url.split('?')[0]
 }
 
-const matchesIgnoredEndpointPattern = (
+export const matchesIgnoredEndpointPattern = (
   pattern: ExpressLogIgnorePattern,
   requestPath: string
 ) => {
@@ -27,7 +27,7 @@ const matchesIgnoredEndpointPattern = (
   return new RegExp(pattern.source, pattern.flags).test(requestPath)
 }
 
-const shouldIgnoreLoggingForRequest = (
+export const shouldIgnoreLoggingForRequest = (
   args: Readonly<{
     req: Pick<Request, 'originalUrl' | 'url'>
     patterns?: readonly ExpressLogIgnorePattern[]
@@ -41,7 +41,7 @@ const shouldIgnoreLoggingForRequest = (
   })
 }
 
-const shouldOmitLoggingData = (
+export const shouldOmitLoggingData = (
   omitRequestData: boolean,
   omitResponseData: boolean
 ): ExpressRouteOptions => {
@@ -57,7 +57,7 @@ const shouldOmitLoggingData = (
   }
 }
 
-const doesExpressRouteMatchRequest = (
+export const doesExpressRouteMatchRequest = (
   args: Readonly<{
     route: ExpressRoute
     req: Pick<Request, 'method' | 'originalUrl' | 'url'>
@@ -89,7 +89,7 @@ const doesExpressRouteMatchRequest = (
   })
 }
 
-const getRouteLoggingOptionsForRequest = (
+export const getRouteLoggingOptionsForRequest = (
   args: Readonly<{
     req: Pick<Request, 'method' | 'originalUrl' | 'url'>
     routes: readonly ExpressRoute[]
@@ -101,14 +101,4 @@ const getRouteLoggingOptionsForRequest = (
       req: args.req,
     })
   })?.options?.logging
-}
-
-export {
-  isExpressRouter,
-  getRequestPath,
-  matchesIgnoredEndpointPattern,
-  shouldIgnoreLoggingForRequest,
-  shouldOmitLoggingData,
-  doesExpressRouteMatchRequest,
-  getRouteLoggingOptionsForRequest,
 }

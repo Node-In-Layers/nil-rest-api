@@ -1,5 +1,4 @@
 import { Router, Request, Response } from 'express'
-import omit from 'lodash/omit.js'
 import kebabCase from 'lodash/kebabCase.js'
 import { StatusCodes } from 'http-status-codes'
 import { asyncMap } from 'modern-async'
@@ -8,9 +7,11 @@ import {
   CrossLayerProps,
   FeaturesContext,
   ModelCrudsFunctions,
+  createErrorObject,
+  isErrorObject,
 } from '@node-in-layers/core'
 import { DataServicesLayer } from '@node-in-layers/data/types.js'
-import { DataDescription, OrmModel } from 'functional-models'
+import { DataDescription, OrmModel, ValidationError } from 'functional-models'
 import { crossLayerPropsFromExpressRequest } from '../features/expressLibs.js'
 import {
   ExpressFeaturesLayer,
@@ -18,7 +19,7 @@ import {
   ExpressFeatures,
 } from './types.js'
 
-const create = (
+export const create = (
   context: FeaturesContext<Config, DataServicesLayer, ExpressFeaturesLayer>
 ): ExpressFeatures => {
   const modelCrudsRouter = <T extends DataDescription>(
@@ -58,20 +59,23 @@ const create = (
       })(req, res)
       .catch(e => {
         const logger = context.log.getInnerLogger(name)
-        const errorObj = {
-          error: {
-            code: 'OverallException',
-            message: 'Unhandled exception occurred',
-            cause: {
-              message: e.message,
-              details: `${e}`,
-            },
-          },
-        }
+        const errorObj = isErrorObject(e)
+          ? e
+          : e instanceof ValidationError
+            ? createErrorObject('VALIDATION_ERROR', 'Validation error.', e)
+            : createErrorObject(
+                'UNCAUGHT_EXCEPTION',
+                'An unhandled exception occurred while executing the model operation.',
+                e
+              )
         logger.error('An overall exception occurred', errorObj)
         res
-          .status(StatusCodes.INTERNAL_SERVER_ERROR)
-          .json(omit(errorObj, ['error.cause']))
+          .status(
+            isErrorObject(e) || e instanceof ValidationError
+              ? StatusCodes.BAD_REQUEST
+              : StatusCodes.INTERNAL_SERVER_ERROR
+          )
+          .json(errorObj)
       })
   }
 
@@ -220,5 +224,3 @@ const create = (
     modelCrudsController,
   }
 }
-
-export { create }

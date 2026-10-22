@@ -167,5 +167,43 @@ describe('/src/express/features.ts', () => {
         { functionCallId: 'fc-1' },
       ])
     })
+
+    it('should return a standard ErrorObject when a model operation fails', async () => {
+      const input = {
+        context: createContext(),
+        req: createRequest(),
+        res: createResponse(),
+        modelCrudsInterface: {
+          getModel: () => ({
+            getModelDefinition: () => ({
+              namespace: 'inventory',
+              pluralName: 'Widgets',
+            }),
+            getName: () => 'inventory.Widgets',
+          }),
+          create: sinon.stub().rejects(new Error('database failure')),
+          retrieve: sinon.stub(),
+          update: sinon.stub(),
+          delete: sinon.stub(),
+          search: sinon.stub(),
+          bulkInsert: sinon.stub(),
+          bulkDelete: sinon.stub(),
+        },
+      }
+
+      const expressFeatures = create(input.context as any)
+      const controller = expressFeatures.modelCrudsController(
+        input.modelCrudsInterface as any
+      )
+
+      await controller.create(input.req as any, input.res as any)
+
+      assert.equal(input.res.status.callCount, 1)
+      assert.equal(input.res.status.firstCall.args[0], 500)
+      assert.deepEqual(
+        input.res.json.firstCall.args[0].error.code,
+        'UNCAUGHT_EXCEPTION'
+      )
+    })
   })
 })
